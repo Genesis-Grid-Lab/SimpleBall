@@ -1,0 +1,13 @@
+[submodule "vendor/raylib"]
+	path = vendor/raylib
+	url = https://github.com/raysan5/raylib.git
+[submodule "vendor/entt"]
+	path = vendor/entt
+	url = https://github.com/skypjack/entt.git
+[submodule "vendor/ImGui"]
+	path = vendor/ImGui
+	url = https://github.com/ocornut/imgui.git
+	branch = docking
+[submodule "vendor/rlImGui"]
+	path = vendor/rlImGui
+	url = https://github.com/raylib-extras/rlImGui.git
