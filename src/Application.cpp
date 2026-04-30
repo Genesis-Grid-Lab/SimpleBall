@@ -4,6 +4,7 @@
 #include "SceneHierarchyPanel.h"
 #include "imgui.h"
 #include "raylib.h"
+#include "raymath.h"
 #include "rlImGui.h"
 #include "ResourceManager.h"
 
@@ -16,6 +17,7 @@ Application::Application() {
 
   m_ViewTexture = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
   m_SceneHierarchyPanel = SceneHierarchyPanel(m_EditorScene);
+  m_EditorScene->m_SceneHierarchy = &m_SceneHierarchyPanel;
 
 
   TestingGround();
@@ -43,27 +45,38 @@ void Application::Run() {
 
   BeginTextureMode(m_ViewTexture);
 
-  if(m_Hovered){
+  m_EditorScene->SetViewportState(m_Hovered, m_Focused);
+  m_EditorScene->SetMousePos(m_RelativeMousePos);
+  m_EditorScene->VSIZE = VSIZE;
 
     switch (m_SceneState) {
     case SceneState::Edit: {
-	m_EditorScene->OnUpdate(10);
+      SetMouseOffset(-(int)VPOS.x, -(int)VPOS.y);
+      SetMouseScale((float)m_ViewTexture.texture.width / VSIZE.x,
+                    (float)m_ViewTexture.texture.height / VSIZE.y);
+      m_EditorScene->OnUpdate(GetFrameTime());
+      SetMouseOffset(0, 0);
+      SetMouseScale(1.0f, 1.0f);
       break;
     }
     case SceneState::Play: {
-	m_RuntimeScene->OnUpdate(10);
+	m_RuntimeScene->OnUpdate(GetFrameTime());
       break;
     }
     case SceneState::Paused: {
       break;
     }
   }
-  }
+  // }
   UI_Toolbar();
   m_SceneHierarchyPanel.Update();
   m_ContentBrowserPanel.Update();
   ViewScene();
+  Gizmo();
   EndTextureMode();
+}
+
+void Application::Gizmo() {
 }
 
 void Application::ViewScene() {
@@ -75,6 +88,13 @@ void Application::ViewScene() {
     {
       m_Focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
       m_Hovered = ImGui::IsWindowHovered(ImGuiFocusedFlags_ChildWindows);
+      VPOS = {ImGui::GetCursorScreenPos().x, ImGui::GetCursorScreenPos().y};
+      VSIZE = {ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y};
+
+      ImVec2 vPos = ImGui::GetCursorScreenPos();
+      ImVec2 mPos = ImGui::GetMousePos();
+
+      m_RelativeMousePos = {mPos.x - vPos.x, mPos.y - vPos.y};      
       // draw the view
       rlImGuiImageRenderTextureFit(&m_ViewTexture, true);
     }

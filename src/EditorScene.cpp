@@ -1,10 +1,12 @@
 #include "EditorScene.h"
 #include "Components.h"
-#include "EditorCameraController.h"
+#include "config.h"
+#include "raylib.h"
 #include "rlgl.h"
 #include "raymath.h"
 #include "Entity.h"
 #include "rcamera.h"
+#include "raygizmo.h"
 
 void DrawCameraFrustum(Camera3D cam, float nearPlane = 0.25f, float farPlane = 10.0f)
 {
@@ -147,10 +149,39 @@ static TextureCubemap GenTextureCubemap(Shader shader, Texture2D panorama, int s
     return cubemap;
 }
 
-EditorScene::EditorScene() : Controller(m_EditorCamera) {
 
-  Controller.Init();
-bool useHDR = false;  
+Ray GetViewportMouseRay(Vector2 mouse, Vector2 viewportSize, Camera3D camera)
+{
+    Matrix projection = MatrixPerspective(
+        camera.fovy * DEG2RAD,
+        viewportSize.x / viewportSize.y,
+        0.01f,
+        1000.0f
+    );
+
+    Matrix view = MatrixLookAt(camera.position, camera.target, camera.up);
+    Matrix invViewProj = MatrixInvert(MatrixMultiply(view, projection));
+
+    float x = (2.0f * mouse.x) / viewportSize.x - 1.0f;
+    float y = 1.0f - (2.0f * mouse.y) / viewportSize.y;
+
+    Vector3 nearPoint = Vector3Transform({ x, y, -1.0f }, invViewProj);
+    Vector3 farPoint  = Vector3Transform({ x, y,  1.0f }, invViewProj);
+
+    Ray ray;
+    ray.position = nearPoint;
+    ray.direction = Vector3Normalize(Vector3Subtract(farPoint, nearPoint));
+
+    return ray;
+}
+
+EditorScene::EditorScene() {
+
+  m_EditorCamera.Init();
+  bool useHDR = false;
+
+  m_Ray = {0};
+  m_Collision = {0};
   cube = GenMeshCube(1.0f, 1.0f, 1.0f);
   skybox = LoadModelFromMesh(cube);
 
@@ -184,12 +215,38 @@ bool useHDR = false;
 
 EditorScene::~EditorScene() {}
 
-void EditorScene::OnUpdate(float ts) {
-  Controller.Update(ts);
+void EditorScene::Control() {
+  if (IsKeyDown(KEY_Q))
+    m_GizmoState = GIZMO_TRANSLATE;
 
+  if (IsKeyDown(KEY_E))
+    m_GizmoState = GIZMO_SCALE;
+
+  if (IsKeyDown(KEY_R))
+    m_GizmoState = GIZMO_ROTATE;
+
+  if (IsKeyDown(KEY_ESCAPE))
+    m_GizmoState = 0;
+
+}
+
+void EditorScene::OnUpdate(float ts) {
+  m_EditorCamera.Update(ts);
+  Control();
   ClearBackground(SKYBLUE);
-  BeginMode3D(m_EditorCamera);
+
+  bool gizmoUsing = false;
+  Entity pickedEntity = {};
+  float closestDistance = FLT_MAX;
+  bool hitSomething = false;  
+  
+  BeginMode3D(m_EditorCamera.GetCam());
   {
+    // Ray ray = GetScreenToWorldRay(m_RelativeMousPos,
+    // m_EditorCamera.GetCam());
+    // Ray ray =
+    //     GetViewportMouseRay(m_RelativeMousPos, VSIZE, m_EditorCamera.GetCam());    
+    // Ray ray = GetScreenToWorldRayEx(m_RelativeMousPos, m_EditorCamera.GetCam(), (int)VSIZE.x, (int)VSIZE.y);
 
     // Rendu du Skybox
     rlDisableBackfaceCulling();
@@ -200,21 +257,79 @@ void EditorScene::OnUpdate(float ts) {
     rlEnableDepthMask();
 
 
+
     GroupEntity<CubeComponent>(
-        [this](auto entity, auto &comp, auto &transform, auto id) {
-          
-          DrawCubeV(transform.Translation, transform.Scale, comp.color);          
-	});
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+          DrawCubeV(transform.Translation, transform.Scale, comp.color);
+          BoundingBox box = {
+            .min = Vector3{transform.Translation.x - transform.Scale.x / 2,
+                           transform.Translation.y - transform.Scale.y / 2,
+                           transform.Translation.z - transform.Scale.z / 2},
+            .max = Vector3{transform.Translation.x + transform.Scale.x / 2,
+                           transform.Translation.y + transform.Scale.y / 2,
+                           transform.Translation.z + transform.Scale.z / 2} 
+            };
+
+	  DrawBoundingBox(box, RED);
+	  RayCollision boxHit = { 0};
+
+          if (!boxHit.hit) {
+	    m_Ray = GetScreenToWorldRay(m_RelativeMousPos, m_EditorCamera.GetCam());
+            boxHit = GetRayCollisionBox(m_Ray, box);
+
+          } else {
+	    boxHit.hit = false;
+          }
+
+	  RayCollision hit = GetRayCollisionBox(m_Ray, box);
+
+	  if (hit.hit && hit.distance < closestDistance)
+	    {
+	      closestDistance = hit.distance;
+	      pickedEntity = entity;
+	      hitSomething = true;
+	    }
+
+	  DrawRay(m_Ray, MAROON);
+
+        });
+
+    GroupEntity<IDComponent>(
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+	  if(!comp.Active) return;
+        Transform gizmoTransform = { 0 };
+	gizmoTransform.translation = transform.Translation;
+	gizmoTransform.rotation = QuaternionFromEuler(transform.Rotation.x, transform.Rotation.y, transform.Rotation.z);
+	gizmoTransform.scale = transform.Scale;
+
+
+	if (DrawGizmo3D(m_GizmoState, &gizmoTransform)) {
+	  // Appliquez les changements en retour à votre composant EnTT
+	  gizmoUsing = true;
+	  transform.Translation = gizmoTransform.translation;
+	  transform.Rotation = QuaternionToEuler(gizmoTransform.rotation);
+	  transform.Scale = gizmoTransform.scale;
+	    
+	}
+  });
 
     DrawGrid(1000, 1.0f);
-    
+
     GroupEntity<CameraComponent>(
         [this](auto entity, auto &comp, auto &transform, auto id) {          
           comp.Camera.position = transform.Translation;
 
           DrawCameraFrustum(comp.Camera);
 	  DrawSphere(comp.Camera.position, 0.25f, RED);
-	});
+        });
+
+    if (!gizmoUsing && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+      {
+	// if (hitSomething)
+	//   m_SceneHierarchy->SetSelectedENtity(pickedEntity);
+	// else
+	//   m_SceneHierarchy->SetSelectedENtity({});
+      }
   }
   EndMode3D();
 

@@ -8,6 +8,27 @@
 // Samll UI helpers
 //----------------------
 
+static bool DrawColorControl(const char* label, Color& color)
+{
+    float col[4] = {
+        color.r / 255.0f,
+        color.g / 255.0f,
+        color.b / 255.0f,
+        color.a / 255.0f
+    };
+
+    if (ImGui::ColorEdit4(label, col))
+    {
+        color.r = (unsigned char)(col[0] * 255.0f);
+        color.g = (unsigned char)(col[1] * 255.0f);
+        color.b = (unsigned char)(col[2] * 255.0f);
+        color.a = (unsigned char)(col[3] * 255.0f);
+        return true;
+    }
+
+    return false;
+}
+
 static bool DrawVec3Control(const char *label, Vector3 &values,
                             float resetValue = 0.0f,
                             float columnWidth = 100.0f) {
@@ -59,6 +80,32 @@ static bool DrawVec3Control(const char *label, Vector3 &values,
   ImGui::PopID(); // label
 
   return changed;
+}
+
+
+static bool DrawCameraControl(Camera3D& camera)
+{
+    bool changed = false;
+
+    changed |= DrawVec3Control("Target", camera.target);
+    changed |= DrawVec3Control("Up", camera.up);
+
+    changed |= ImGui::DragFloat("FOV", &camera.fovy, 0.1f, 1.0f, 179.0f);
+
+    const char* projectionTypes[] = {
+        "Perspective",
+        "Orthographic"
+    };
+
+    int currentProjection = camera.projection;
+
+    if (ImGui::Combo("Projection", &currentProjection, projectionTypes, 2))
+    {
+        camera.projection = currentProjection;
+        changed = true;
+    }
+
+    return changed;
 }
 
 /** Generic foldout for components with add/remove menu on the right
@@ -153,6 +200,15 @@ void SceneHierarchyPanel::Update() {
   if (m_SelectionContext)
     DrawComponents(m_SelectionContext);
   ImGui::End();
+
+  m_Context->GroupEntity<IDComponent>(
+      [this](auto entity, auto &comp, auto &transform, auto id) {
+        if (m_SelectionContext == entity)
+          comp.Active = true;
+        else {
+	  comp.Active = false;
+	}
+      });
 }
 
 void SceneHierarchyPanel::DrawEntityNode(Entity entity){
@@ -213,7 +269,6 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
     if (ImGui::InputText("Tag", buffer, sizeof(buffer)))
       tag = std::string(buffer);
   }
-
   // Add Component button
   ImGui::SameLine();
   if (ImGui::Button("Add Component"))
@@ -222,9 +277,19 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
 
   // Transform
   DrawComponent<TransformComponent>(
-      "Transform", entity, [](Entity, TransformComponent &tc) {
+      "Transform", entity,
+      [](Entity, TransformComponent &tc) {
         DrawVec3Control("Translation", tc.Translation);
         DrawVec3Control("Rotation", tc.Rotation);
 	DrawVec3Control("Scale", tc.Scale, 1.0f);
-      }, false);
+      },
+      false);
+
+  DrawComponent<CubeComponent>("Cube", entity, [](Entity, CubeComponent &cc) {
+    DrawColorControl("Color", cc.color);
+  });
+
+  DrawComponent<CameraComponent>(
+      "Camera", entity,
+      [](Entity, CameraComponent &cc) { DrawCameraControl(cc.Camera); });  
 }

@@ -2,13 +2,15 @@
 
 #include "raylib.h"
 
-class EditorCameraController {
+class EditorCamera {
 public:
-  EditorCameraController(const Camera3D &camera) : m_Camera(camera) {}
+  EditorCamera() = default;
 
   void Init();
-
+  void SetViewportState(bool hovered, bool focused);
   void Update(float dt);
+
+  Camera3D const &GetCam() { return m_Camera;}
 
 private:
   Vector3 GetForward() const;
@@ -18,6 +20,8 @@ private:
   void FreeLook(Vector2 mouseDelta, float dt);
   void Orbit(Vector2 mouseDelta);
   void UpdateAnglesFromCamera();
+  void Zoom(Vector2 mouseDelta, float dt);
+  void Pan(Vector2 mouseDelta);
 
 private:
   Camera3D m_Camera;
@@ -31,6 +35,9 @@ private:
   float MouseSensitivity = 0.15f;
   float OrbitSensitivity = 0.25f;
 
-  Vector3 FocalPoint = { 0.0f, 0.0f, 0.0f};
+  Vector3 FocalPoint = {0.0f, 0.0f, 0.0f};
+  bool ViewportHovered = false;
+  bool ViewportFocused = false;
+  bool CapturingMouse = false;
   
 };

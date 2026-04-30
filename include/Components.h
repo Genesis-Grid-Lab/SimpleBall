@@ -5,6 +5,7 @@
 
 struct IDComponent {
   UUID ID;
+  bool Active = false;
 
   IDComponent() = default;
   IDComponent(const IDComponent &) = default;

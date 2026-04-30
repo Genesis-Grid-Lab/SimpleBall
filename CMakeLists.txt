@@ -32,7 +32,9 @@ file(GLOB rlImGuiHEAD ${CMAKE_SOURCE_DIR}/vendor/rlImGui/*.h)
 
 file(GLOB ImGuiSRC ${CMAKE_SOURCE_DIR}/vendor/ImGui/*.cpp)
 
-add_executable(${PROJECT_NAME} ${sources} ${rlImGuiSRC} ${ImGuiSRC} ${headers})
+file(GLOB raylib-gizmo ${CMAKE_SOURCE_DIR}/vendor/raylib-gizmo/src/*.c)
+
+add_executable(${PROJECT_NAME} ${sources} ${rlImGuiSRC} ${ImGuiSRC} ${raylib-gizmo} ${headers})
 
 # export engine symbols
 target_compile_definitions(${PROJECT_NAME} PUBLIC
@@ -45,6 +47,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_SOURCE_DIR}/vendor/entt/single_include/entt
   ${CMAKE_SOURCE_DIR}/vendor/ImGui
   ${CMAKE_SOURCE_DIR}/vendor/rlImGui
+  ${CMAKE_SOURCE_DIR}/vendor/raylib-gizmo/src
 )
 
 # link libraries

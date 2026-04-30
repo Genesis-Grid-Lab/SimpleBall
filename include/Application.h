@@ -25,6 +25,7 @@ private:
  private:
    void UI_Toolbar();
    void ViewScene();
+   void Gizmo();
    void TestingGround();
 
 private:
@@ -37,6 +38,7 @@ private:
   RenderTexture m_ViewTexture;
   bool m_Focused = false;
   bool m_Hovered = false;
+  Vector2 VPOS, VSIZE, m_RelativeMousePos;
 
   // Panels
   SceneHierarchyPanel m_SceneHierarchyPanel;
