@@ -57,11 +57,15 @@ public:
     for (auto &[name, shader] : s_Shaders)
       UnloadShader(shader);
 
+    for (auto &[name, model] : s_Models)
+      UnloadModel(model);
+
     s_Textures.clear();
     s_Sounds.clear();
     s_Music.clear();
     s_Fonts.clear();
     s_Shaders.clear();
+    s_Models.clear();
   }
 
 public:
@@ -98,6 +102,8 @@ private:
       return s_Fonts;
     else if constexpr (std::is_same_v<Asset, Shader>)
       return s_Shaders;
+    else if constexpr (std::is_same_v<Asset, Model>)
+      return s_Models;    
     else
       static_assert(sizeof(Asset) == 0, "Unsupported resource type");
   }
@@ -126,6 +132,14 @@ private:
       if (font.texture.id == 0)
         throw std::runtime_error("Failed to load font: " + path);
       return font;
+    }
+    else if constexpr (std::is_same_v<Asset, Model>){
+      Model model = LoadModel(path.c_str());
+
+      if (model.meshCount == 0)        
+	throw std::runtime_error("Failed to load model: " + path);
+
+      return model;      
     }    
     else
       static_assert(sizeof(Asset) == 0, "Unsupported resource type");
@@ -141,7 +155,9 @@ private:
     else if constexpr (std::is_same_v<Asset, Font>)
       UnloadFont(resource);    
     else if constexpr (std::is_same_v<Asset, Shader>)
-      UnloadShader(resource);    
+      UnloadShader(resource);
+    else if constexpr (std::is_same_v<Asset, Model>)
+      UnloadModel(resource);    
     else
       static_assert(sizeof(Asset) == 0, "Unsupported resource type");
   }
@@ -151,4 +167,5 @@ private:
   inline static std::unordered_map<std::string, Music> s_Music;
   inline static std::unordered_map<std::string, Font> s_Fonts;
   inline static std::unordered_map<std::string, Shader> s_Shaders;
+  inline static std::unordered_map<std::string, Model> s_Models;
 };

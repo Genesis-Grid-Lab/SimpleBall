@@ -46,3 +46,31 @@ struct CubeComponent {
   CubeComponent(const Color &col)
       :color(col) {}
 };
+
+struct SphereComponent {
+  Color color = WHITE;
+  
+  SphereComponent() = default;
+  SphereComponent(const SphereComponent &) = default;
+  SphereComponent(const Color &col) : color(col) {}
+};
+
+class ScriptableEntity;
+
+struct NativeScriptComponent {
+  ScriptableEntity *Instance = nullptr;
+
+  ScriptableEntity *(*InstantiateScript)();
+  void (*DestroyScript)(NativeScriptComponent *);
+
+  template <typename T> void Bind() {
+    InstantiateScript = []() {
+      return static_cast<ScriptableEntity*>(new T());
+    };
+
+    DestroyScript = [](NativeScriptComponent *nsc) {
+      delete nsc->Instance;
+      nsc->Instance = nullptr;
+    };
+  }  
+};

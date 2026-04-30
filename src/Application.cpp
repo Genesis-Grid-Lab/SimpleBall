@@ -7,6 +7,7 @@
 #include "raymath.h"
 #include "rlImGui.h"
 #include "ResourceManager.h"
+#include "ScriptableEntity.h"
 
 Application::Application() {
   m_EditorScene = CreateRef<EditorScene>();
@@ -31,6 +32,19 @@ void Application::TestingGround() {
   cubeComp.color = GREEN;
 
   cubeTC.Translation = Vector3{10, 0, 0};
+
+  class cubeControl : public ScriptableEntity {
+  public:
+    virtual void OnCreate() override {
+      
+    }
+    virtual void OnDestroy() override {}
+    virtual void OnUpdate(float ts) override {
+      
+    }
+  };
+
+  cube.AddComponent<NativeScriptComponent>().Bind<cubeControl>();
 
   auto cam = m_EditorScene->CreateEntity("cam");
   auto &camTc = cam.GetComponent<TransformComponent>();
@@ -163,7 +177,8 @@ void Application::OnScenePlay() {
   if (!m_RuntimeScene)
       m_RuntimeScene = CreateRef<RuntimeScene>();
 
-  m_RuntimeScene = Scene::Copy<RuntimeScene>(m_EditorScene);  
+  m_RuntimeScene = Scene::Copy<RuntimeScene>(m_EditorScene);
+  m_RuntimeScene->OnRuntimeStart();
   
   m_SceneHierarchyPanel.SetContext(m_RuntimeScene);
 

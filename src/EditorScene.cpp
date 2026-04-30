@@ -1,6 +1,7 @@
 #include "EditorScene.h"
 #include "Components.h"
 #include "config.h"
+#include "imgui.h"
 #include "raylib.h"
 #include "rlgl.h"
 #include "raymath.h"
@@ -216,13 +217,17 @@ EditorScene::EditorScene() {
 EditorScene::~EditorScene() {}
 
 void EditorScene::Control() {
-  if (IsKeyDown(KEY_Q))
+  ImGuiIO &io = ImGui::GetIO();
+
+  bool ImGuiUsing = io.WantCaptureKeyboard;
+  
+  if (IsKeyDown(KEY_Q) && !ImGuiUsing)
     m_GizmoState = GIZMO_TRANSLATE;
 
-  if (IsKeyDown(KEY_E))
+  if (IsKeyDown(KEY_E) && !ImGuiUsing)
     m_GizmoState = GIZMO_SCALE;
 
-  if (IsKeyDown(KEY_R))
+  if (IsKeyDown(KEY_R) && !ImGuiUsing)
     m_GizmoState = GIZMO_ROTATE;
 
   if (IsKeyDown(KEY_ESCAPE))
@@ -285,14 +290,18 @@ void EditorScene::OnUpdate(float ts) {
 
 	  if (hit.hit && hit.distance < closestDistance)
 	    {
-	      closestDistance = hit.distance;
-	      pickedEntity = entity;
-	      hitSomething = true;
-	    }
+            closestDistance = hit.distance;
+            pickedEntity = entity;
+            hitSomething = true;
+          }
 
 	  DrawRay(m_Ray, MAROON);
-
         });
+
+    GroupEntity<SphereComponent>(
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+          DrawSphere(transform.Translation, transform.Scale.x, comp.color);          
+    });
 
     GroupEntity<IDComponent>(
         [&](auto entity, auto &comp, auto &transform, auto id) {

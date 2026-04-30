@@ -1,13 +1,30 @@
 #include "RuntimeScene.h"
 #include "Components.h"
-#include "Entity.h"
+#include "ScriptableEntity.h"
 
 RuntimeScene::~RuntimeScene() {}
 
 //--------------------------------------------------------------------
 // Scene::OnRuntimeStart
 //--------------------------------------------------------------------
-void RuntimeScene::OnRuntimeStart() {}
+void RuntimeScene::OnRuntimeStart() {
+  GroupEntity<NativeScriptComponent>(
+      [=](auto entity, auto &comp, auto &transform, auto id) {
+	if(!comp.Instance){
+          // ASSERT(comp.InstantiateScript,
+          //        "NativeSCriptComponent missing Bind()");
+
+          comp.Instance = comp.InstantiateScript();
+
+          comp.Instance->m_Entity = Entity(entity, this);
+          comp.Instance->m_Scene = this;
+	  comp.Instance->OnCreate();
+        } else {
+          comp.Instance->m_Entity = Entity(entity, this);
+	  comp.Instance->m_Scene = this;
+        }      
+  });
+}
 
 //--------------------------------------------------------------------
 // Scene::OnRuntimeStop
@@ -19,8 +36,25 @@ void RuntimeScene::OnRuntimeStop() {}
 // Scene::OnUpdate
 //--------------------------------------------------------------------
 void RuntimeScene::OnUpdate(float ts) {
-
   ClearBackground(SKYBLUE);
+
+  GroupEntity<NativeScriptComponent>(
+      [=](auto entity, auto &comp, auto &transform, auto id) {
+		if(!comp.Instance){
+          // ASSERT(comp.InstantiateScript,
+          //        "NativeSCriptComponent missing Bind()");
+
+          comp.Instance = comp.InstantiateScript();
+
+          comp.Instance->m_Entity = Entity(entity, this);
+          comp.Instance->m_Scene = this;
+	  comp.Instance->OnCreate();
+        } else {
+          comp.Instance->m_Entity = Entity(entity, this);
+	  comp.Instance->m_Scene = this;
+        }
+		comp.Instance->OnUpdate(ts);
+      });
 
   bool CamPresent = false;
 
@@ -37,6 +71,11 @@ void RuntimeScene::OnUpdate(float ts) {
       [this](auto entity, auto &comp, auto &transform, auto id) {
 	DrawCubeV(transform.Translation, transform.Scale, comp.color);
       });
+
+  GroupEntity<SphereComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+        DrawSphere(transform.Translation, transform.Scale.x, comp.color);
+      });  
 
 
 

@@ -3,6 +3,7 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include <cstring>
+#include "ScriptableEntity.h"
 
 //----------------------
 // Samll UI helpers
@@ -248,12 +249,36 @@ void SceneHierarchyPanel::DrawEntityNode(Entity entity){
 
 static void DrawAddComponentPopup(Entity entity) {
   if (ImGui::BeginPopup("AddComponentPopup")) {
-    // if (!entity.HasComponent<CameraComponent>()) {
-    //   if (ImGui::MenuItem("Camera")) {
-    //     entity.AddComponent<CameraComponent>();
-    // 	ImGui::CloseCurrentPopup();
-    //   }
-    // }
+    if (!entity.HasComponent<CameraComponent>()) {
+      if (ImGui::MenuItem("Camera")) {
+        entity.AddComponent<CameraComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if(!entity.HasComponent<CubeComponent>()){
+      if (ImGui::MenuItem("Cube")) {
+        entity.AddComponent<CubeComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if(!entity.HasComponent<SphereComponent>()){
+      if (ImGui::MenuItem("Sphere")) {
+        entity.AddComponent<SphereComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if (!entity.HasComponent<NativeScriptComponent>()) {
+      if (ImGui::MenuItem("NativeScript")) {
+	class DefaultScript : public ScriptableEntity {
+        public:	  
+	};
+        entity.AddComponent<NativeScriptComponent>().Bind<DefaultScript>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
 
     ImGui::EndPopup();
   }
@@ -277,7 +302,7 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
 
   // Transform
   DrawComponent<TransformComponent>(
-      "Transform", entity,
+      "TransformComponent", entity,
       [](Entity, TransformComponent &tc) {
         DrawVec3Control("Translation", tc.Translation);
         DrawVec3Control("Rotation", tc.Rotation);
@@ -285,11 +310,20 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
       },
       false);
 
-  DrawComponent<CubeComponent>("Cube", entity, [](Entity, CubeComponent &cc) {
-    DrawColorControl("Color", cc.color);
-  });
+  DrawComponent<CubeComponent>(
+      "CubeComponent", entity,
+      [](Entity, CubeComponent &cc) { DrawColorControl("Color", cc.color); });  
 
   DrawComponent<CameraComponent>(
       "Camera", entity,
-      [](Entity, CameraComponent &cc) { DrawCameraControl(cc.Camera); });  
+      [](Entity, CameraComponent &cc) { DrawCameraControl(cc.Camera); });
+
+  DrawComponent<SphereComponent>(
+      "SphereComponent", entity,
+      [](Entity, SphereComponent &sc) { DrawColorControl("Color", sc.color); });
+
+  DrawComponent<NativeScriptComponent>("NativeScriptComponent", entity,
+                                       [](Entity, NativeScriptComponent &nsc) {
+					 
+  });
 }
