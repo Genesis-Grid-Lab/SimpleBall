@@ -7,6 +7,12 @@
 #include "imgui.h"
 #include "rlImGui.h"
 
+extern "C" {
+#include "lua.h"
+#include "lauxlib.h"
+#include "lualib.h"
+}
+
 #define screenWidth 1280
 #define screenHeight 800
 

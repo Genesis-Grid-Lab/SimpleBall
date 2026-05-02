@@ -1,5 +1,6 @@
 #include "Application.h"
 #include "Components.h"
+#include "LuaScriptEngine.h"
 #include "RuntimeScene.h"
 #include "SceneHierarchyPanel.h"
 #include "imgui.h"
@@ -12,6 +13,8 @@
 Application::Application() {
   m_EditorScene = CreateRef<EditorScene>();
   m_RuntimeScene = CreateRef<RuntimeScene>();
+
+  LuaScriptEngine::Init();
 
   ResourceManager::Load<Texture2D>("IconPlay", "Resources/Icons/PlayButton.png");
   ResourceManager::Load<Texture2D>("IconStop", "Resources/Icons/StopButton.png");
@@ -43,8 +46,8 @@ void Application::TestingGround() {
       
     }
   };
-
   cube.AddComponent<NativeScriptComponent>().Bind<cubeControl>();
+  cube.AddComponent<LuaScriptComponent>().scriptPath = "Resources/Scripts/test.lua";
 
   auto cam = m_EditorScene->CreateEntity("cam");
   auto &camTc = cam.GetComponent<TransformComponent>();

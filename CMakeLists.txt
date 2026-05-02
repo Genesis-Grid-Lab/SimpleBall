@@ -20,6 +20,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(SUPPORT_FILEFORMAT_HDR ON CACHE BOOL "Support loading HDR as textures" FORCE)
 add_subdirectory(vendor/raylib)
 add_subdirectory(vendor/entt)
+add_subdirectory(vendor/lua)
+add_subdirectory(vendor/sol2)
 
 project(SimpleBall C CXX)
 
@@ -48,12 +50,16 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_SOURCE_DIR}/vendor/ImGui
   ${CMAKE_SOURCE_DIR}/vendor/rlImGui
   ${CMAKE_SOURCE_DIR}/vendor/raylib-gizmo/src
+  ${CMAKE_SOURCE_DIR}/vendor/sol2/include
+  ${CMAKE_SOURCE_DIR}/vendor/lua/src
 )
 
 # link libraries
 target_link_libraries(${PROJECT_NAME} PUBLIC             
   raylib
   EnTT
+  sol2
+  liblua
 )
 
 # copy resources

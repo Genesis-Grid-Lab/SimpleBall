@@ -59,7 +59,8 @@ void Scene::DuplicateEntity(Entity entity) {
   CopyComponentIfExists<CubeComponent>(newEntity, entity);
   CopyComponentIfExists<CameraComponent>(newEntity, entity);
   CopyComponentIfExists<SphereComponent>(newEntity, entity);
-  CopyComponentIfExists<NativeScriptComponent>(newEntity, entity);  
+  CopyComponentIfExists<NativeScriptComponent>(newEntity, entity);
+  CopyComponentIfExists<LuaScriptComponent>(newEntity, entity);
 }
 
 template <typename T>
@@ -86,7 +87,7 @@ Ref<T> Scene::Copy(const Ref<Scene> &other) {
   CopyComponent<CameraComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
   CopyComponent<SphereComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
   CopyComponent<NativeScriptComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
-  
+  CopyComponent<LuaScriptComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
   return newScene;
 }
 
@@ -115,6 +116,7 @@ template <>
 void Scene::OnComponentAdded(Entity entity, SphereComponent &component) {}
 
 template <>
-void Scene::OnComponentAdded(Entity entity, NativeScriptComponent &componet) {
-        TraceLog(LOG_TRACE, "SceneONUPDATE");
-}
+void Scene::OnComponentAdded(Entity entity, NativeScriptComponent &componet) {}
+
+template <>
+void Scene::OnComponentAdded(Entity entity, LuaScriptComponent& component){}

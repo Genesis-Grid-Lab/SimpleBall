@@ -14,3 +14,9 @@
 [submodule "vendor/raylib-gizmo"]
 	path = vendor/raylib-gizmo
 	url = https://github.com/cloudofoz/raylib-gizmo.git
+[submodule "vendor/sol2"]
+	path = vendor/sol2
+	url = https://github.com/ThePhD/sol2.git
+[submodule "vendor/lua"]
+	path = vendor/lua
+	url = https://github.com/marovira/lua.git

@@ -1,6 +1,9 @@
 #include "RuntimeScene.h"
 #include "Components.h"
+#include "LuaScriptEngine.h"
 #include "ScriptableEntity.h"
+#include "raylib.h"
+#include <sol/forward.hpp>
 
 RuntimeScene::~RuntimeScene() {}
 
@@ -22,7 +25,12 @@ void RuntimeScene::OnRuntimeStart() {
         } else {
           comp.Instance->m_Entity = Entity(entity, this);
 	  comp.Instance->m_Scene = this;
-        }      
+        }
+      });
+
+  GroupEntity<LuaScriptComponent>(
+      [this](auto entity, auto &comp, auto &transform, auto id) {
+	LuaScriptEngine::LoadScript(Entity(entity, this), comp);
   });
 }
 
@@ -40,7 +48,7 @@ void RuntimeScene::OnUpdate(float ts) {
 
   GroupEntity<NativeScriptComponent>(
       [=](auto entity, auto &comp, auto &transform, auto id) {
-		if(!comp.Instance){
+        if (!comp.Instance) {
           // ASSERT(comp.InstantiateScript,
           //        "NativeSCriptComponent missing Bind()");
 
@@ -53,8 +61,26 @@ void RuntimeScene::OnUpdate(float ts) {
           comp.Instance->m_Entity = Entity(entity, this);
 	  comp.Instance->m_Scene = this;
         }
-		comp.Instance->OnUpdate(ts);
+        comp.Instance->OnUpdate(ts);
       });
+
+  GroupEntity<LuaScriptComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+        if (!comp.Valid)
+          return;
+
+        sol::protected_function onUpdate = comp.Instance["onUpdate"];
+
+        if (onUpdate.valid()) {
+          auto result = onUpdate(comp.Instance,ts);
+
+          if (!result.valid()) {
+            sol::error err = result;
+
+	    TraceLog(LOG_ERROR, "Lua onUpdate error: %s", err.what());
+	  }
+	}
+  });
 
   bool CamPresent = false;
 

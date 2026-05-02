@@ -2,6 +2,7 @@
 
 #include "UUID.h"
 #include "raylib.h"
+#include "sol/sol.hpp"
 
 struct IDComponent {
   UUID ID;
@@ -73,4 +74,11 @@ struct NativeScriptComponent {
       nsc->Instance = nullptr;
     };
   }  
+};
+
+struct LuaScriptComponent {
+  std::string scriptPath;
+
+  sol::table Instance;
+  bool Valid = false;
 };
