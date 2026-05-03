@@ -55,12 +55,36 @@ void Scene::DuplicateEntity(Entity entity) {
   auto name = entity.GetName();
   auto newEntity = CreateEntity(name);
 
+  // Core
   CopyComponentIfExists<TransformComponent>(newEntity, entity);
+  
+  // Rendering
   CopyComponentIfExists<CubeComponent>(newEntity, entity);
-  CopyComponentIfExists<CameraComponent>(newEntity, entity);
+  CopyComponentIfExists<PlaneComponent>(newEntity, entity);
   CopyComponentIfExists<SphereComponent>(newEntity, entity);
+  CopyComponentIfExists<ModelComponent>(newEntity, entity);
+  CopyComponentIfExists<SpriteComponent>(newEntity, entity);
+  
+  // Camera
+  CopyComponentIfExists<CameraComponent>(newEntity, entity);
+  
+  // Lighting
+  CopyComponentIfExists<LightComponent>(newEntity, entity);
+  
+  // Physics
+  CopyComponentIfExists<RigidbodyComponent>(newEntity, entity);
+  CopyComponentIfExists<BoxColliderComponent>(newEntity, entity);
+  
+  // Audio
+  CopyComponentIfExists<AudioListenerComponent>(newEntity, entity);
+  CopyComponentIfExists<AudioSourceComponent>(newEntity, entity);
+  
+  // Scripting
   CopyComponentIfExists<NativeScriptComponent>(newEntity, entity);
   CopyComponentIfExists<LuaScriptComponent>(newEntity, entity);
+  
+  // Editor-only
+  CopyComponentIfExists<EditorOnlyComponent>(newEntity, entity);
 }
 
 template <typename T>
@@ -80,20 +104,50 @@ Ref<T> Scene::Copy(const Ref<Scene> &other) {
     enttMap[uuid] = (entt::entity)newEntity;
   }
 
-  // Cope components (except IDComponent and TagComponent)
+  // Copy components (except IDComponent and TagComponent)
+  // Core
   CopyComponent<TransformComponent>(dstSceneRegistry, srcSceneRegistry,
                                     enttMap);
+
+  // Rendering
   CopyComponent<CubeComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
-  CopyComponent<CameraComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
+  CopyComponent<PlaneComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
   CopyComponent<SphereComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
+  CopyComponent<ModelComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
+  CopyComponent<SpriteComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
+
+  // Camera
+  CopyComponent<CameraComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
+
+  // Lighting
+  CopyComponent<LightComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
+
+  // Physics
+  CopyComponent<RigidbodyComponent>(dstSceneRegistry, srcSceneRegistry,
+                                    enttMap);
+  CopyComponent<BoxColliderComponent>(dstSceneRegistry, srcSceneRegistry,
+                                      enttMap);
+
+  // Audio
+  CopyComponent<AudioListenerComponent>(dstSceneRegistry, srcSceneRegistry,
+                                        enttMap);
+  CopyComponent<AudioSourceComponent>(dstSceneRegistry, srcSceneRegistry,
+                                      enttMap);
+
+  // Scripting
   CopyComponent<NativeScriptComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
-  CopyComponent<LuaScriptComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
+  CopyComponent<LuaScriptComponent>(dstSceneRegistry, srcSceneRegistry,
+                                    enttMap);
+
+  // Editor-only
+  CopyComponent<EditorOnlyComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
   return newScene;
 }
 
 template Ref<RuntimeScene> Scene::Copy<RuntimeScene>(const Ref<Scene>&);
 // template Ref<EditorScene> Scene::Copy<EditorScene>(const Ref<Scene>&);
 
+// Core
 template <typename T>
 void Scene::OnComponentAdded(Entity entity, T &component) {}
 
@@ -106,15 +160,46 @@ void Scene::OnComponentAdded(Entity entity, TransformComponent &component) {}
 template <>
 void Scene::OnComponentAdded(Entity entity, TagComponent &component) {}
 
+// Rendering
 template <>
 void Scene::OnComponentAdded(Entity entity, CubeComponent &component) {}
 
 template <>
-void Scene::OnComponentAdded(Entity entity, CameraComponent &component) {}
+void Scene::OnComponentAdded(Entity entity, PlaneComponent &component) {}
 
 template <>
 void Scene::OnComponentAdded(Entity entity, SphereComponent &component) {}
 
+template <>
+void Scene::OnComponentAdded(Entity entity, ModelComponent &component) {}
+
+template <>
+void Scene::OnComponentAdded(Entity entity, SpriteComponent &component) {}
+
+// Camera
+template <>
+void Scene::OnComponentAdded(Entity entity, CameraComponent &component) {}
+
+// Lighting
+template <>
+void Scene::OnComponentAdded(Entity entity, LightComponent &component) {}
+
+// Physics
+template <>
+void Scene::OnComponentAdded(Entity entity, RigidbodyComponent &component) {}
+
+template <>
+void Scene::OnComponentAdded(Entity entity, BoxColliderComponent &component) {}
+
+// Audio
+template <>
+void Scene::OnComponentAdded(Entity entity, AudioListenerComponent &component) {
+}
+
+template <>
+void Scene::OnComponentAdded(Entity entity, AudioSourceComponent &component){}
+
+// Scripting
 template <>
 void Scene::OnComponentAdded(Entity entity, NativeScriptComponent &componet) {}
 

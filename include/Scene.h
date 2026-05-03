@@ -19,6 +19,8 @@ public:
 
   void DuplicateEntity(Entity entity);
 
+  RenderTexture &GetViewTexture() { return m_ViewTexture; }
+
   template <typename T> static Ref<T> Copy(const Ref<Scene> &other);
 
   template <typename Entt, typename Comp, typename Task>
@@ -45,6 +47,8 @@ private:
   template <typename T> void OnComponentAdded(Entity entity, T &component);
 protected:
   friend class Entity;
+
+  RenderTexture m_ViewTexture;
 
   entt::registry m_Registry;
   std::vector<entt::entity>

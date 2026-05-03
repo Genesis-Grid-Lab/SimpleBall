@@ -1,5 +1,7 @@
 .cache/
 Targets/
+.vscode/
+build/
 
 compile_commands.json
 

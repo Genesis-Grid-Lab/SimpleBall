@@ -4,6 +4,8 @@
 #include "imgui_internal.h"
 #include <cstring>
 #include "ScriptableEntity.h"
+#include "imgui_stdlib.h"
+#include "raylib.h"
 
 //----------------------
 // Samll UI helpers
@@ -263,9 +265,65 @@ static void DrawAddComponentPopup(Entity entity) {
       }
     }
 
+    if (!entity.HasComponent<PlaneComponent>()) {
+      if (ImGui::MenuItem("Plane")) {
+        entity.AddComponent<PlaneComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }    
+
     if(!entity.HasComponent<SphereComponent>()){
       if (ImGui::MenuItem("Sphere")) {
         entity.AddComponent<SphereComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if(!entity.HasComponent<ModelComponent>()){
+      if (ImGui::MenuItem("Model")) {
+        entity.AddComponent<ModelComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if (!entity.HasComponent<SpriteComponent>()) {
+      if(ImGui::MenuItem("Sprite")){
+        entity.AddComponent<SpriteComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if(!entity.HasComponent<LightComponent>()){
+      if (ImGui::MenuItem("Light")) {
+        entity.AddComponent<LightComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if (!entity.HasComponent<RigidbodyComponent>()) {
+      if(ImGui::MenuItem("Rigidbody")){
+        entity.AddComponent<RigidbodyComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if (!entity.HasComponent<BoxColliderComponent>()) {
+      if (ImGui::MenuItem("BoxCollider")) {
+        entity.AddComponent<BoxColliderComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if(!entity.HasComponent<AudioListenerComponent>()){
+      if (ImGui::MenuItem("AudioListerner")) {
+        entity.AddComponent<AudioListenerComponent>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if (!entity.HasComponent<AudioSourceComponent>()) {
+      if(ImGui::MenuItem("AudioSource")){
+        entity.AddComponent<AudioSourceComponent>();
 	ImGui::CloseCurrentPopup();
       }
     }
@@ -276,6 +334,21 @@ static void DrawAddComponentPopup(Entity entity) {
         public:	  
 	};
         entity.AddComponent<NativeScriptComponent>().Bind<DefaultScript>();
+	ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if (!entity.HasComponent<LuaScriptComponent>()) {
+      if(ImGui::MenuItem("LuaScript")){
+        entity.AddComponent<LuaScriptComponent>().scriptPath =
+            "Resources/Scripts/test.lua";        
+	ImGui::CloseCurrentPopup();
+        }
+    }
+
+    if(!entity.HasComponent<EditorOnlyComponent>()){
+      if (ImGui::MenuItem("EditOnly")) {
+        entity.AddComponent<EditorOnlyComponent>();
 	ImGui::CloseCurrentPopup();
       }
     }
@@ -310,20 +383,167 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
       },
       false);
 
-  DrawComponent<CubeComponent>(
-      "CubeComponent", entity,
-      [](Entity, CubeComponent &cc) { DrawColorControl("Color", cc.color); });  
+  DrawComponent<CameraComponent>("Camera", entity,
+                                 [](Entity, CameraComponent &cc) {
+                                   DrawCameraControl(cc.Camera);
+                                   ImGui::Checkbox("Primary", &cc.Primary);
+				   ImGui::Checkbox("FixedAspectRatio", &cc.FixedAspecRatio);
+                                   });
 
-  DrawComponent<CameraComponent>(
-      "Camera", entity,
-      [](Entity, CameraComponent &cc) { DrawCameraControl(cc.Camera); });
+  DrawComponent<CubeComponent>("CubeComponent", entity,
+                               [](Entity, CubeComponent &cc) {
+                                 DrawColorControl("Color", cc.Tint);
+				 ImGui::Checkbox("SceneLighting", &cc.useSceneLighting);
+                               });
 
-  DrawComponent<SphereComponent>(
-      "SphereComponent", entity,
-      [](Entity, SphereComponent &sc) { DrawColorControl("Color", sc.color); });
+  DrawComponent<PlaneComponent>("PlaneComponent", entity,
+                                [](Entity, PlaneComponent &pc) {
+				  DrawColorControl("Color", pc.Tint);
+				  ImGui::Checkbox("SceneLighting", &pc.useSceneLighting);
+				});
 
+  DrawComponent<SphereComponent>("SphereComponent", entity,
+                                 [](Entity, SphereComponent &sc) {
+                                   DrawColorControl("Color", sc.Tint);
+				   ImGui::Checkbox("SceneLighting", &sc.useSceneLighting);
+                                   });
+
+  DrawComponent<ModelComponent>("ModelComponent", entity,
+                                [](Entity, ModelComponent &mc) {
+                                  ImGui::Text(mc.ModelPath.c_str());
+				  ImGui::Checkbox("SceneLighting", &mc.useSceneLighting);
+				  DrawColorControl("Tint", mc.Tint);
+                                });
+
+  DrawComponent<SpriteComponent>("SpriteComponent", entity,
+                                 [](Entity, SpriteComponent &sc) {
+                                   ImGui::Text(sc.TexturePath.c_str());
+				   ImGui::Checkbox("SceneLighting", &sc.useSceneLighting);
+                                   DrawColorControl("Tint", sc.Tint);
+                                 });
+
+  DrawComponent<LightComponent>(
+      "LightComponent", entity, [](Entity, LightComponent &lc) {
+        const char *items[] = {"Directional", "Point", "Spot"};
+	int selected = (int)lc.Type;
+
+        if (ImGui::Combo("Type", &selected, items, IM_ARRAYSIZE(items))) {
+	  lc.Type = (LightType)selected;
+	}
+                                  
+	DrawColorControl("Color", lc.ColorValue);
+	ImGui::DragFloat("Intensity", &lc.Intensity);
+
+	if (lc.Type == LightType::Point || lc.Type == LightType::Spot) {
+	  ImGui::DragFloat("Range", &lc.Range, 0.5f, 0.0f, 1000.0f);
+	}
+
+	if (lc.Type == LightType::Directional || lc.Type == LightType::Spot) {
+	  DrawVec3Control("Direction", lc.Direction);
+        }
+
+	if (lc.Type == LightType::Spot) {
+	  // Contrôle de l'angle du cône
+	  ImGui::SliderFloat("Spot Angle", &lc.SpotAngle, 1.0f, 90.0f);
+	}
+
+	ImGui::Checkbox("Shadow", &lc.CastShadow);
+      });
+
+  DrawComponent<RigidbodyComponent>("RigidbodyComponent", entity,
+                                    [](Entity, RigidbodyComponent &rc) {
+				      const char *items[] = {"Static", "Dynamic", "Kinematic"};
+				      int selected = 0;
+				      
+				      ImGui::ListBox("Type", &selected, items, IM_ARRAYSIZE(items));
+
+				      switch (selected) {
+				      case 0:
+					rc.Type = BodyType::Static;
+					break;
+				      case 1:
+					rc.Type = BodyType::Dynamic;
+					break;
+				      case 3:
+					rc.Type = BodyType::Kinematic;
+					break;
+                                      }
+
+                                      DrawVec3Control("Velocity", rc.Velocity);
+                                      DrawVec3Control("AngularVelocity",
+                                                      rc.AngularVelocity);
+
+                                      ImGui::DragFloat("Mass", &rc.Mass);
+                                      ImGui::DragFloat("Drag", &rc.Drag);
+                                      ImGui::DragFloat("AngularDrag",
+                                                       &rc.AngularDrag);
+
+				      ImGui::Checkbox("Gravity", &rc.useGravity);
+  });
+
+  DrawComponent<BoxColliderComponent>("BoxColliderComponent", entity,
+                                      [](Entity, BoxColliderComponent &bc) {
+                                        DrawVec3Control("Offset", bc.Offset);
+                                        DrawVec3Control("Size", bc.Size);
+
+					ImGui::Checkbox("IsTrigger", &bc.IsTrigger);
+                                      });
+
+  DrawComponent<AudioSourceComponent>("AudioSourceComponent", entity,
+                                      [](Entity, AudioSourceComponent &asc) {
+                                        ImGui::Text(asc.SoundPath.c_str());
+
+                                        ImGui::Checkbox("PlayOnStart",
+                                                        &asc.PlayOnStart);
+                                        ImGui::Checkbox("Loop", &asc.Loop);
+
+                                        ImGui::DragFloat("Volume", &asc.Volume);
+					ImGui::DragFloat("Pitch", &asc.Pitch);
+                                      });
+  DrawComponent<AudioListenerComponent>(
+      "AudioListenerComponent", entity,
+      [](Entity, AudioListenerComponent &alc) {
+	ImGui::Checkbox("Primary", &alc.Primary);
+        
+  });
+  
   DrawComponent<NativeScriptComponent>("NativeScriptComponent", entity,
                                        [](Entity, NativeScriptComponent &nsc) {
 					 
   });
+
+  DrawComponent<LuaScriptComponent>(
+      "LuaScriptComponent", entity, [](Entity, LuaScriptComponent &component) {
+	// 1. Only load if the buffer is empty (or use a flag)
+        if (component.sourceCode.empty() && !component.scriptPath.empty()) {
+          char *loaded = LoadFileText(component.scriptPath.c_str());
+          if (loaded) {
+            component.sourceCode = loaded;
+            UnloadFileText(loaded); // Clean up raylib's memory immediately
+          }
+        }
+
+        // 2. Edit the persistent string (Requires #include "imgui_stdlib.h")
+        if (ImGui::InputTextMultiline("##source", &component.sourceCode,
+                                      ImVec2(-1.0f, 200.0f),
+                                      ImGuiInputTextFlags_AllowTabInput)) {
+          // This returns true when the text changes
+          component.isDirty = true;
+        }
+
+        // 3. Save button
+        if (ImGui::Button("Save Script")) {
+          SaveFileText(component.scriptPath.c_str(),
+                       (char *)component.sourceCode.c_str());
+        }
+      });
+
+  DrawComponent<EditorOnlyComponent>("EditorOnlyComponent", entity,
+                                     [](Entity, EditorOnlyComponent &eoc) {
+                                       ImGui::Checkbox("Visible", &eoc.Visible);
+                                       ImGui::Checkbox("Locked", &eoc.Loacked);                                       
+  });
+  
+  
 }
+

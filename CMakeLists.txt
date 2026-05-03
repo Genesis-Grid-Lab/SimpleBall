@@ -32,7 +32,8 @@ file(GLOB_RECURSE headers ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h)
 file(GLOB rlImGuiSRC ${CMAKE_SOURCE_DIR}/vendor/rlImGui/rlImGui.cpp)
 file(GLOB rlImGuiHEAD ${CMAKE_SOURCE_DIR}/vendor/rlImGui/*.h)
 
-file(GLOB ImGuiSRC ${CMAKE_SOURCE_DIR}/vendor/ImGui/*.cpp)
+file(GLOB ImGuiSRC ${CMAKE_SOURCE_DIR}/vendor/ImGui/*.cpp
+${CMAKE_SOURCE_DIR}/vendor/ImGui/misc/cpp/*.cpp)
 
 file(GLOB raylib-gizmo ${CMAKE_SOURCE_DIR}/vendor/raylib-gizmo/src/*.c)
 
@@ -48,6 +49,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_SOURCE_DIR}/vendor/raylib/src
   ${CMAKE_SOURCE_DIR}/vendor/entt/single_include/entt
   ${CMAKE_SOURCE_DIR}/vendor/ImGui
+  ${CMAKE_SOURCE_DIR}/vendor/ImGui/misc/cpp
   ${CMAKE_SOURCE_DIR}/vendor/rlImGui
   ${CMAKE_SOURCE_DIR}/vendor/raylib-gizmo/src
   ${CMAKE_SOURCE_DIR}/vendor/sol2/include

@@ -34,8 +34,7 @@ private:
 
   enum class SceneState { Edit = 0, Play = 1, Paused = 2 };
   SceneState m_SceneState = SceneState::Edit;
-
-  RenderTexture m_ViewTexture;
+  
   bool m_Focused = false;
   bool m_Hovered = false;
   Vector2 VPOS, VSIZE, m_RelativeMousePos;

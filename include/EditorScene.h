@@ -1,5 +1,6 @@
 #pragma once
 
+#include "LightHelper.h"
 #include "Scene.h"
 #include "EditorCamera.h"
 #include "SceneHierarchyPanel.h"
@@ -20,9 +21,13 @@ public:
 
   SceneHierarchyPanel *m_SceneHierarchy;
   Vector2 VSIZE;
+  Vector2 VPOS;
 
 private:
   void Control();
+  void ShadowPass();
+  void DrawDepthModel(Model &model, Vector3 pos, Vector3 rot, Vector3 scale);
+  void DrawDeptScene();
 
 private:
   EditorCamera m_EditorCamera;
@@ -31,8 +36,17 @@ private:
 
   Ray m_Ray;
   RayCollision m_Collision;
+  Shader m_LightShader;
+  Shader m_DefaultShader;
+
+  LightShaderCahe m_LightShaderCache;
+  ShadowMap m_ShadowMap;
 
   // toremove
   Mesh cube;
   Model skybox;
+
+  Model m_CubeModel;
+  Model m_SphereModel;
+  Model m_PlaneModel;
 };

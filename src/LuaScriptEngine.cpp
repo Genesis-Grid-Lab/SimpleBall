@@ -17,7 +17,6 @@ void LuaScriptEngine::Init() {
 
   RegisterTypes();
 
-  TraceLog(LOG_WARNING, "INIT LUA SCRIPT");
 }
 
 void LuaScriptEngine::RegisterTypes() {
@@ -37,6 +36,19 @@ void LuaScriptEngine::RegisterTypes() {
 
   s_Lua.set_function("IsKeyDown", [](int key) { return ::IsKeyDown(key); });
 
+  s_Lua.set_function("print", [](sol::variadic_args args)
+  {
+    std::string out;
+
+    for (auto v : args)
+      {
+        out += v.as<std::string>();
+        out += " ";
+      }
+
+    TraceLog(LOG_INFO, "[Lua] %s", out.c_str());
+  });
+
   s_Lua["KEY_W"] = KEY_W;
   s_Lua["KEY_A"] = KEY_A;
   s_Lua["KEY_S"] = KEY_S;
@@ -45,6 +57,8 @@ void LuaScriptEngine::RegisterTypes() {
 
 void LuaScriptEngine::LoadScript(Entity entity, LuaScriptComponent &comp) {
   sol::load_result loaded = s_Lua.load_file(comp.scriptPath);
+
+  TraceLog(LOG_WARNING, "Loading Lua script: %s", comp.scriptPath.c_str());
 
   if(!loaded.valid()){
     sol::error err = loaded;
@@ -62,14 +76,24 @@ void LuaScriptEngine::LoadScript(Entity entity, LuaScriptComponent &comp) {
     return;
   }
 
+  if (result.get_type() != sol::type::table)
+    {
+      TraceLog(LOG_ERROR, "Lua script did not return a table");
+      comp.Valid = false;
+      return;
+    }  
+
   sol::table scripTable = result;
 
-  comp.Instance = scripTable;
+  // comp.Instance = scripTable;
+  comp.Instance = result.get<sol::table>();
   comp.Valid = true;
 
   comp.Instance["entity"] = entity;
 
-  sol::protected_function onCreate = comp.Instance["onCreate"];
+  comp.Instance = result.get<sol::table>();  
+
+  sol::protected_function onCreate = comp.Instance["OnCreate"];
 
   if (onCreate.valid()) {
     auto createResult = onCreate(comp.Instance);
@@ -79,4 +103,5 @@ void LuaScriptEngine::LoadScript(Entity entity, LuaScriptComponent &comp) {
       TraceLog(LOG_WARNING, "Lua onCreate error: %s", err.what());
     }
   }
+
 }

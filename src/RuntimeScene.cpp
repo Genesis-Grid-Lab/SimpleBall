@@ -1,11 +1,110 @@
 #include "RuntimeScene.h"
 #include "Components.h"
 #include "LuaScriptEngine.h"
+#include "ResourceManager.h"
 #include "ScriptableEntity.h"
 #include "raylib.h"
+#include "raymath.h"
+#include "rlgl.h"
 #include <sol/forward.hpp>
 
+RuntimeScene::RuntimeScene() {
+  m_ViewTexture = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
+  m_LightShader = ResourceManager::Get<Shader>("LightShader");
+
+  m_LightShaderCache.Init(m_LightShader);
+
+  m_DefaultShader.id = rlGetShaderIdDefault();
+
+  m_ShadowMap.RenderTexture = LoadRenderTexture(2048, 2048);
+
+  m_ShadowMap.DepthShader = ResourceManager::Get<Shader>("shadowMap");
+
+  m_ShadowMap.ShadowMapLoc = GetShaderLocation(m_LightShader, "shadowMap");
+
+  m_ShadowMap.LightSpaceLoc = GetShaderLocation(m_LightShader, "lightSpaceMatrix");
+
+  m_CubeModel = LoadModelFromMesh(GenMeshCube(1, 1, 1));
+  m_SphereModel = LoadModelFromMesh(GenMeshSphere(1, 32, 32));
+  m_PlaneModel = LoadModelFromMesh(GenMeshPlane(1, 1, 1, 1));
+}
+
 RuntimeScene::~RuntimeScene() {}
+
+void RuntimeScene::DrawDepthModel(Model &model, Vector3 pos, Vector3 rot,
+                                  Vector3 scale) {
+  Shader oldShader = model.materials[0].shader;
+  model.materials[0].shader = m_ShadowMap.DepthShader;
+
+  DrawModelEx(model, pos, {0, 1, 0}, rot.y * RAD2DEG, scale, WHITE);
+  model.materials[0].shader = oldShader;
+}
+
+void RuntimeScene::DrawDeptScene() {
+  GroupEntity<CubeComponent>(
+      [this](auto entity, auto &comp, auto &transform, auto id) {
+  DrawDepthModel(m_CubeModel, transform.Translation, transform.Rotation, transform.Scale);
+      });
+
+  GroupEntity<PlaneComponent>(
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+          DrawDepthModel(m_PlaneModel, transform.Translation, transform.Rotation, transform.Scale);
+  });
+
+  GroupEntity<SphereComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+        DrawDepthModel(m_SphereModel, transform.Translation, transform.Rotation,
+                       transform.Scale);
+      });
+
+  GroupEntity<ModelComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+        if (!ResourceManager::Has<Model>(comp.ModelPath))
+          return;
+        
+        DrawDepthModel(ResourceManager::Get<Model>(comp.ModelPath), transform.Translation, transform.Rotation, transform.Scale);
+      });
+
+}
+
+void RuntimeScene::ShadowPass() {
+  LightComponent *shadowLight = nullptr;
+
+  GroupEntity<LightComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+        if(comp.Type == LightType::Directional && comp.CastShadow){
+          shadowLight = &comp;	  
+	}
+      });
+
+  if (!shadowLight)
+    return;
+
+  Vector3 lightDir = Vector3Normalize(shadowLight->Direction);
+  Vector3 lightPos = Vector3Scale(lightDir, -10.0f);
+
+  Camera lightCam = {0};
+  lightCam.position = lightPos;
+  lightCam.target = {0, 0, 0};
+  lightCam.up = {0, 1, 0};
+  lightCam.fovy = 30.0f;
+  lightCam.projection = CAMERA_ORTHOGRAPHIC;
+
+  m_ShadowMap.LightView =
+      MatrixLookAt(lightCam.position, lightCam.target, lightCam.up);
+  m_ShadowMap.LightProjection = MatrixOrtho(-30, 30, -30, 30, 0.1f, 100.0f);
+  m_ShadowMap.LightSpaceMatrix =
+      MatrixMultiply(m_ShadowMap.LightView, m_ShadowMap.LightProjection);
+
+  BeginTextureMode(m_ShadowMap.RenderTexture);
+  ClearBackground(WHITE);
+  BeginMode3D(lightCam);
+  rlDisableBackfaceCulling();
+  DrawDeptScene();
+  rlEnableBackfaceCulling();
+  EndMode3D();
+  EndTextureMode();
+}
 
 //--------------------------------------------------------------------
 // Scene::OnRuntimeStart
@@ -44,6 +143,9 @@ void RuntimeScene::OnRuntimeStop() {}
 // Scene::OnUpdate
 //--------------------------------------------------------------------
 void RuntimeScene::OnUpdate(float ts) {
+  ShadowPass();
+  BeginTextureMode(m_ViewTexture);
+
   ClearBackground(SKYBLUE);
 
   GroupEntity<NativeScriptComponent>(
@@ -62,6 +164,7 @@ void RuntimeScene::OnUpdate(float ts) {
 	  comp.Instance->m_Scene = this;
         }
         comp.Instance->OnUpdate(ts);
+
       });
 
   GroupEntity<LuaScriptComponent>(
@@ -69,7 +172,7 @@ void RuntimeScene::OnUpdate(float ts) {
         if (!comp.Valid)
           return;
 
-        sol::protected_function onUpdate = comp.Instance["onUpdate"];
+        sol::protected_function onUpdate = comp.Instance["OnUpdate"];
 
         if (onUpdate.valid()) {
           auto result = onUpdate(comp.Instance,ts);
@@ -78,7 +181,7 @@ void RuntimeScene::OnUpdate(float ts) {
             sol::error err = result;
 
 	    TraceLog(LOG_ERROR, "Lua onUpdate error: %s", err.what());
-	  }
+          }
 	}
   });
 
@@ -93,15 +196,93 @@ void RuntimeScene::OnUpdate(float ts) {
 	BeginMode3D(comp.Camera);
       });
 
+
+    int lightIndex = 0;
+
+    GroupEntity<LightComponent>(
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+	  ShaderLight light;
+	  light.enabled = 1;
+	  light.type = (int)comp.Type;
+	  light.position = transform.Translation;
+	  light.direction = comp.Direction;
+	  light.color = { comp.ColorValue.r / 255.0f, comp.ColorValue.g / 255.0f, 
+			  comp.ColorValue.b / 255.0f, comp.ColorValue.a / 255.0f };
+	  light.intensity = comp.Intensity;
+          light.range = comp.Range;
+          float cosAngle = cosf(comp.SpotAngle * DEG2RAD);
+
+	  light.spotAngle = cosAngle;
+
+	  m_LightShaderCache.UploadLight(lightIndex, light);
+	  lightIndex++;
+	  
+        });
+
+    m_LightShaderCache.SetLightCount(lightIndex);
+    m_LightShaderCache.SetShadowData(m_ShadowMap.LightSpaceMatrix, m_ShadowMap.RenderTexture.depth, true);
+  
+
   GroupEntity<CubeComponent>(
       [this](auto entity, auto &comp, auto &transform, auto id) {
-	DrawCubeV(transform.Translation, transform.Scale, comp.color);
+	if (comp.useSceneLighting)
+	  {
+	    m_CubeModel.materials[0].shader = m_LightShader;
+
+	  }else {
+	  m_CubeModel.materials[0].shader = m_DefaultShader;
+	}
+
+	DrawModelEx(m_CubeModel, transform.Translation, {0,1,0}, transform.Rotation.y * RAD2DEG, transform.Scale, comp.Tint);
       });
+
+  GroupEntity<PlaneComponent>(
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+	  if (comp.useSceneLighting){
+	    m_PlaneModel.materials[0].shader = m_LightShader;
+          } else {            
+	    m_PlaneModel.materials[0].shader = m_DefaultShader;
+          }
+
+          DrawModelEx(m_PlaneModel, transform.Translation, {0, 1, 0},
+                      transform.Rotation.y * RAD2DEG, transform.Scale,
+                      comp.Tint);   
+	});
 
   GroupEntity<SphereComponent>(
       [&](auto entity, auto &comp, auto &transform, auto id) {
-        DrawSphere(transform.Translation, transform.Scale.x, comp.color);
-      });  
+	if (comp.useSceneLighting){
+	  m_SphereModel.materials[0].shader = m_LightShader;	   
+	}
+	else {
+	  m_SphereModel.materials[0].shader = m_DefaultShader;
+	}
+
+	DrawModelEx(m_SphereModel, transform.Translation, {0, 1, 0},
+		    transform.Rotation.y * RAD2DEG, transform.Scale,
+		    comp.Tint); 
+      });
+
+      GroupEntity<ModelComponent>(
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+          if (!ResourceManager::Has<Model>(comp.ModelPath))
+	    return;
+          // todo: trim comp.ModelPath
+          Model &model = ResourceManager::Get<Model>(comp.ModelPath);
+
+	  if(comp.useSceneLighting){
+            for (int i = 0; i < model.materialCount; i++)
+	      model.materials[i].shader = m_LightShader;
+          }
+	  else{
+	    for (int i = 0; i < model.materialCount; i++)
+              model.materials[i].shader = m_DefaultShader;            
+	  }
+
+          DrawModelEx(model, transform.Translation, {0, 1, 0},
+                      transform.Rotation.y * RAD2DEG, transform.Scale,
+                      comp.Tint);	  
+	});
 
 
 
@@ -109,6 +290,8 @@ void RuntimeScene::OnUpdate(float ts) {
     EndMode3D();
 
   DrawFPS(10, 10);
+
+  EndTextureMode();
 
   FlushEntityDestruction();
 }

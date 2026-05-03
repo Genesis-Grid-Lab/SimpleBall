@@ -11,28 +11,34 @@
 #include "ScriptableEntity.h"
 
 Application::Application() {
+  ResourceManager::LoadShaderResource("LightShader", "Resources/Shaders/lighting.vs", "Resources/Shaders/lighting.fs");
   m_EditorScene = CreateRef<EditorScene>();
   m_RuntimeScene = CreateRef<RuntimeScene>();
 
   LuaScriptEngine::Init();
 
   ResourceManager::Load<Texture2D>("IconPlay", "Resources/Icons/PlayButton.png");
-  ResourceManager::Load<Texture2D>("IconStop", "Resources/Icons/StopButton.png");
+  ResourceManager::Load<Texture2D>("IconStop",
+                                   "Resources/Icons/StopButton.png");
 
-  m_ViewTexture = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
   m_SceneHierarchyPanel = SceneHierarchyPanel(m_EditorScene);
   m_EditorScene->m_SceneHierarchy = &m_SceneHierarchyPanel;
-
 
   TestingGround();
 }
 
 void Application::TestingGround() {
+
+  auto floor = m_EditorScene->CreateEntity("Floor");
+  auto& fTC = floor.GetComponent<TransformComponent>();
+  floor.AddComponent<PlaneComponent>().Tint = PURPLE;
+  fTC.Scale = {10, 0, 10};
+
   auto cube = m_EditorScene->CreateEntity("Cube");
   auto &cubeTC = cube.GetComponent<TransformComponent>();
   auto &cubeComp = cube.AddComponent<CubeComponent>();
   cubeTC.Scale = Vector3{10, 10, 10};
-  cubeComp.color = GREEN;
+  cubeComp.Tint = GREEN;
 
   cubeTC.Translation = Vector3{10, 0, 0};
 
@@ -47,7 +53,6 @@ void Application::TestingGround() {
     }
   };
   cube.AddComponent<NativeScriptComponent>().Bind<cubeControl>();
-  cube.AddComponent<LuaScriptComponent>().scriptPath = "Resources/Scripts/test.lua";
 
   auto cam = m_EditorScene->CreateEntity("cam");
   auto &camTc = cam.GetComponent<TransformComponent>();
@@ -56,24 +61,34 @@ void Application::TestingGround() {
   camComp.Camera.projection = CAMERA_PERSPECTIVE;
   camComp.Camera.up = {0, 1, 0};
   camComp.Camera.target = cubeTC.Translation;
+
+  camTc.Translation = {-8, 7, 22};
+
+  auto light = m_EditorScene->CreateEntity("Light");
+  auto& lTC = light.GetComponent<TransformComponent>();
+  auto& lcomp = light.AddComponent<LightComponent>();
+  lcomp.Type = LightType::Directional;
+  lcomp.CastShadow = true;
+  lTC.Translation = {0, 7, 0};
+
+
+  auto man = m_EditorScene->CreateEntity("Man");
+  man.AddComponent<ModelComponent>().ModelPath = "Resources/greenman.glb";
+  man.AddComponent<LuaScriptComponent>().scriptPath = "Resources/Scripts/test.lua";  
 }
 
-void Application::Run() {
-
-  BeginTextureMode(m_ViewTexture);
+void Application::Run() {  
 
   m_EditorScene->SetViewportState(m_Hovered, m_Focused);
   m_EditorScene->SetMousePos(m_RelativeMousePos);
   m_EditorScene->VSIZE = VSIZE;
+  m_EditorScene->VPOS = VPOS;
 
     switch (m_SceneState) {
     case SceneState::Edit: {
-      SetMouseOffset(-(int)VPOS.x, -(int)VPOS.y);
-      SetMouseScale((float)m_ViewTexture.texture.width / VSIZE.x,
-                    (float)m_ViewTexture.texture.height / VSIZE.y);
+      
       m_EditorScene->OnUpdate(GetFrameTime());
-      SetMouseOffset(0, 0);
-      SetMouseScale(1.0f, 1.0f);
+      
       break;
     }
     case SceneState::Play: {
@@ -89,8 +104,7 @@ void Application::Run() {
   m_SceneHierarchyPanel.Update();
   m_ContentBrowserPanel.Update();
   ViewScene();
-  Gizmo();
-  EndTextureMode();
+  Gizmo();  
 }
 
 void Application::Gizmo() {
@@ -111,9 +125,12 @@ void Application::ViewScene() {
       ImVec2 vPos = ImGui::GetCursorScreenPos();
       ImVec2 mPos = ImGui::GetMousePos();
 
-      m_RelativeMousePos = {mPos.x - vPos.x, mPos.y - vPos.y};      
+      m_RelativeMousePos = {mPos.x - vPos.x, mPos.y - vPos.y};
       // draw the view
-      rlImGuiImageRenderTextureFit(&m_ViewTexture, true);
+      if(m_SceneState == SceneState::Edit)
+        rlImGuiImageRenderTextureFit(&m_EditorScene->GetViewTexture(), true);
+      else if(m_SceneState == SceneState::Play)
+        rlImGuiImageRenderTextureFit(&m_RuntimeScene->GetViewTexture(), true);
     }
   
   ImGui::End();

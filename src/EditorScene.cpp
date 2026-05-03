@@ -1,5 +1,7 @@
 #include "EditorScene.h"
 #include "Components.h"
+#include "LightHelper.h"
+#include "ResourceManager.h"
 #include "config.h"
 #include "imgui.h"
 #include "raylib.h"
@@ -8,6 +10,7 @@
 #include "Entity.h"
 #include "rcamera.h"
 #include "raygizmo.h"
+#include <cmath>
 
 void DrawCameraFrustum(Camera3D cam, float nearPlane = 0.25f, float farPlane = 10.0f)
 {
@@ -181,6 +184,8 @@ EditorScene::EditorScene() {
   m_EditorCamera.Init();
   bool useHDR = false;
 
+  m_ViewTexture = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
+
   m_Ray = {0};
   m_Collision = {0};
   cube = GenMeshCube(1.0f, 1.0f, 1.0f);
@@ -211,7 +216,25 @@ EditorScene::EditorScene() {
     Image image = LoadImage("Resources/skybox.png");
     skybox.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture = LoadTextureCubemap(image, CUBEMAP_LAYOUT_AUTO_DETECT);
     UnloadImage(image);
-  }  
+  }
+
+  m_LightShader = ResourceManager::Get<Shader>("LightShader");
+  m_DefaultShader.id = rlGetShaderIdDefault();
+
+  m_LightShaderCache.Init(m_LightShader);
+
+  m_ShadowMap.RenderTexture = LoadRenderTexture(2048, 2048);
+
+  m_ShadowMap.DepthShader = ResourceManager::LoadShaderResource(
+      "shadowMap", "Resources/Shaders/shadow_depth.vs", "Resources/Shaders/shadow_depth.fs");  
+
+  m_ShadowMap.ShadowMapLoc = GetShaderLocation(m_LightShader, "shadowMap");
+
+  m_ShadowMap.LightSpaceLoc = GetShaderLocation(m_LightShader, "lightSpaceMatrix");
+
+  m_CubeModel = LoadModelFromMesh(GenMeshCube(1, 1, 1));
+  m_SphereModel = LoadModelFromMesh(GenMeshSphere(1, 32, 32));
+  m_PlaneModel = LoadModelFromMesh(GenMeshPlane(1, 1, 1, 1));
 }
 
 EditorScene::~EditorScene() {}
@@ -232,10 +255,114 @@ void EditorScene::Control() {
 
   if (IsKeyDown(KEY_ESCAPE))
     m_GizmoState = 0;
-
 }
 
+Vector3 GetAlphaVector(Vector3 v) {
+    if (fabs(v.x) < 0.9f) return Vector3{1, 0, 0};
+    return Vector3{0, 1, 0};
+}
+
+void EditorScene::DrawDepthModel(Model &model, Vector3 pos, Vector3 rot, Vector3 scale) {
+  Shader oldShader = model.materials[0].shader;
+  model.materials[0].shader = m_ShadowMap.DepthShader;
+
+  DrawModelEx(model, pos, {0, 1, 0}, rot.y * RAD2DEG, scale, WHITE);
+
+  model.materials[0].shader = oldShader;
+}
+
+void EditorScene::DrawDeptScene() {
+  GroupEntity<CubeComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+        DrawDepthModel(m_CubeModel, transform.Translation, transform.Rotation,
+                       transform.Scale);
+      });
+
+  GroupEntity<PlaneComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+        DrawDepthModel(m_PlaneModel, transform.Translation, transform.Rotation,
+                       transform.Scale);
+      });
+
+  GroupEntity<SphereComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+        DrawDepthModel(m_SphereModel, transform.Translation, transform.Rotation,
+                       transform.Scale);
+      });
+
+  GroupEntity<ModelComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+        if (!ResourceManager::Has<Model>(comp.ModelPath))
+          ResourceManager::Load<Model>(comp.ModelPath, comp.ModelPath);
+
+        Model &model = ResourceManager::Get<Model>(comp.ModelPath);
+        DrawDepthModel(model, transform.Translation, transform.Rotation,
+                       transform.Scale);
+      });
+}
+
+void EditorScene::ShadowPass() {
+
+  LightComponent *shadowLight = nullptr;
+  TransformComponent *shadowTransform = nullptr;
+
+  GroupEntity<LightComponent>(
+      [&](auto entity, auto &comp, auto &transform, auto id) {
+	if(comp.Type == LightType::Directional && comp.CastShadow){
+          shadowLight = &comp;
+	  shadowTransform = &transform;
+	}
+      });
+  
+    if(!shadowLight) return;
+    Vector3 lightDir = Vector3Normalize(shadowLight->Direction);
+    Vector3 lightPos = Vector3Scale(lightDir, -25.0f);
+
+    Camera3D lightCam = {0};
+    lightCam.position = lightPos;
+    lightCam.target = Vector3Zero();
+    lightCam.up = Vector3{0, 1, 0};
+    lightCam.fovy = 30.0f;
+    lightCam.projection = CAMERA_ORTHOGRAPHIC;
+
+    // m_ShadowMap.LightView = MatrixLookAt(lightPos, {0, 0, 0}, {0, 1, 0});
+    m_ShadowMap.LightView = MatrixLookAt(lightCam.position, lightCam.target, lightCam.up);
+
+    m_ShadowMap.LightProjection = MatrixOrtho(-30, 30, -30, 30, 0.1f, 100.0f);
+
+    m_ShadowMap.LightSpaceMatrix =
+        MatrixMultiply(m_ShadowMap.LightView, m_ShadowMap.LightProjection);
+
+    // m_ShadowMap.LightSpaceMatrix =
+    //     MatrixMultiply(m_ShadowMap.LightProjection, m_ShadowMap.LightView);
+
+    // SetShaderValueMatrix(
+    //         m_ShadowMap.DepthShader,
+    //         GetShaderLocation(m_ShadowMap.DepthShader, "lightSpaceMatrix"),
+    //         m_ShadowMap.LightSpaceMatrix);
+
+    BeginTextureMode(m_ShadowMap.RenderTexture);
+
+    ClearBackground(WHITE);
+    BeginMode3D(lightCam);
+    rlDisableBackfaceCulling();
+    DrawDeptScene();
+    rlEnableBackfaceCulling();
+    EndMode3D();
+    EndTextureMode();
+  
+}
+
+
 void EditorScene::OnUpdate(float ts) {
+
+  ShadowPass();
+
+  BeginTextureMode(m_ViewTexture);
+
+  SetMouseOffset(-(int)VPOS.x, -(int)VPOS.y);
+      SetMouseScale((float)m_ViewTexture.texture.width / VSIZE.x,
+                    (float)m_ViewTexture.texture.height / VSIZE.y);
   m_EditorCamera.Update(ts);
   Control();
   ClearBackground(SKYBLUE);
@@ -261,11 +388,97 @@ void EditorScene::OnUpdate(float ts) {
     rlEnableBackfaceCulling();
     rlEnableDepthMask();
 
+    int lightIndex = 0;
 
+    GroupEntity<LightComponent>(
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+	  ShaderLight light;
+	  light.enabled = 1;
+	  light.type = (int)comp.Type;
+	  light.position = transform.Translation;
+	  light.direction = comp.Direction;
+	  light.color = { comp.ColorValue.r / 255.0f, comp.ColorValue.g / 255.0f, 
+			  comp.ColorValue.b / 255.0f, comp.ColorValue.a / 255.0f };
+	  light.intensity = comp.Intensity;
+          light.range = comp.Range;
+          float cosAngle = cosf(comp.SpotAngle * DEG2RAD);
+
+	  light.spotAngle = cosAngle;
+
+          // UploadLight(m_LightShader, lightIndex, light);
+
+	  m_LightShaderCache.UploadLight(lightIndex, light);
+	  lightIndex++;
+
+	  // --- 2. DESSIN DEBUG (Raylib) ---
+	  // Un petit point solide au centre
+	  DrawSphere(transform.Translation, 0.1f, comp.ColorValue);
+
+	  if (comp.Type == LightType::Point || comp.Type == LightType::Spot) {
+	    // Dessine la portée de la lumière en fil de fer
+	    DrawSphereWires(transform.Translation, comp.Range, 8, 8, Fade(comp.ColorValue, 0.2f));
+	  }
+
+	  if (comp.Type == LightType::Directional || comp.Type == LightType::Spot) {
+	    // Dessine une ligne pour la direction (longueur de 2 unités)
+	    Vector3 target = Vector3Add(transform.Translation, Vector3Scale(Vector3Normalize(comp.Direction), 2.0f));
+	    DrawLine3D(transform.Translation, target, comp.ColorValue);
+        
+	    // Petite flèche ou cône au bout
+	    DrawSphere(target, 0.05f, comp.ColorValue);
+          }
+
+	  if (comp.Type == LightType::Spot) {
+	    Vector3 pos = transform.Translation;
+	    Vector3 dir = Vector3Normalize(comp.Direction);
+    
+	    // 1. Calcul de la base du cône (au bout de la portée)
+	    Vector3 baseCenter = Vector3Add(pos, Vector3Scale(dir, comp.Range));
+    
+	    // 2. Calcul du rayon du cercle à cette distance
+	    float radius = tanf(comp.SpotAngle * DEG2RAD) * comp.Range;
+
+	    // 3. Dessiner le cercle orienté seloZn la direction
+	    // Le paramètre 'rotationAxis' doit être la direction de ta lumière
+	    DrawCircle3D(baseCenter, radius, dir, 90.0f, comp.ColorValue);
+
+	    // 4. Dessiner les lignes du cône (les "arêtes")
+	    // On trouve un vecteur perpendiculaire à la direction pour créer les points
+	    Vector3 v1 = Vector3Normalize(GetAlphaVector(dir)); // Vecteur arbitraire perpendiculaire
+	    Vector3 v2 = Vector3CrossProduct(dir, v1);
+
+	    // Dessin de 4 lignes de la pointe vers le bord du cercle
+	    float r = radius;
+	    Vector3 p1 = Vector3Add(baseCenter, Vector3Scale(v1, r));
+	    Vector3 p2 = Vector3Add(baseCenter, Vector3Scale(v1, -r));
+	    Vector3 p3 = Vector3Add(baseCenter, Vector3Scale(v2, r));
+	    Vector3 p4 = Vector3Add(baseCenter, Vector3Scale(v2, -r));
+
+	    DrawLine3D(pos, p1, comp.ColorValue);
+	    DrawLine3D(pos, p2, comp.ColorValue);
+	    DrawLine3D(pos, p3, comp.ColorValue);
+	    DrawLine3D(pos, p4, comp.ColorValue);
+	  }
+        });
+
+    // SetShaderValue(m_LightShader,
+    //                GetShaderLocation(m_LightShader, "uLightCount"),
+    //                &lightIndex, SHADER_UNIFORM_INT);
+    m_LightShaderCache.SetLightCount(lightIndex);
+    m_LightShaderCache.SetShadowData(m_ShadowMap.LightSpaceMatrix, m_ShadowMap.RenderTexture.depth, true);
+    // m_LightShaderCache.SetShadowData(m_ShadowMap.LightSpaceMatrix, m_ShadowMap.RenderTexture.texture, true);
 
     GroupEntity<CubeComponent>(
         [&](auto entity, auto &comp, auto &transform, auto id) {
-          DrawCubeV(transform.Translation, transform.Scale, comp.color);
+          if (comp.useSceneLighting)
+	    {
+	      m_CubeModel.materials[0].shader = m_LightShader;
+
+            }else {
+	    m_CubeModel.materials[0].shader = m_DefaultShader;
+            }
+
+	  DrawModelEx(m_CubeModel, transform.Translation, {0,1,0}, transform.Rotation.y * RAD2DEG, transform.Scale, comp.Tint);
           BoundingBox box = {
             .min = Vector3{transform.Translation.x - transform.Scale.x / 2,
                            transform.Translation.y - transform.Scale.y / 2,
@@ -298,10 +511,53 @@ void EditorScene::OnUpdate(float ts) {
 	  DrawRay(m_Ray, MAROON);
         });
 
+    GroupEntity<PlaneComponent>(
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+	  if (comp.useSceneLighting){
+	    m_PlaneModel.materials[0].shader = m_LightShader;
+          } else {            
+	    m_PlaneModel.materials[0].shader = m_DefaultShader;
+          }
+
+          DrawModelEx(m_PlaneModel, transform.Translation, {0, 1, 0},
+                      transform.Rotation.y * RAD2DEG, transform.Scale,
+                      comp.Tint);          
+    });
+
     GroupEntity<SphereComponent>(
         [&](auto entity, auto &comp, auto &transform, auto id) {
-          DrawSphere(transform.Translation, transform.Scale.x, comp.color);          
-    });
+	  if (comp.useSceneLighting){
+            m_SphereModel.materials[0].shader = m_LightShader;	   
+          }
+	  else {
+	    m_SphereModel.materials[0].shader = m_DefaultShader;
+          }
+
+          DrawModelEx(m_SphereModel, transform.Translation, {0, 1, 0},
+                      transform.Rotation.y * RAD2DEG, transform.Scale,
+                      comp.Tint);          
+        });
+
+    GroupEntity<ModelComponent>(
+        [&](auto entity, auto &comp, auto &transform, auto id) {
+          if (!ResourceManager::Has<Model>(comp.ModelPath))
+            ResourceManager::Load<Model>(comp.ModelPath, comp.ModelPath);
+          // todo: trim comp.ModelPath
+          Model &model = ResourceManager::Get<Model>(comp.ModelPath);
+
+	  if(comp.useSceneLighting){
+            for (int i = 0; i < model.materialCount; i++)
+	      model.materials[i].shader = m_LightShader;
+          }
+	  else{
+	    for (int i = 0; i < model.materialCount; i++)
+	      model.materials[i].shader = m_DefaultShader;
+          }
+
+          DrawModelEx(model, transform.Translation, {0, 1, 0},
+                      transform.Rotation.y * RAD2DEG, transform.Scale,
+                      comp.Tint);	  
+	});
 
     GroupEntity<IDComponent>(
         [&](auto entity, auto &comp, auto &transform, auto id) {
@@ -325,7 +581,7 @@ void EditorScene::OnUpdate(float ts) {
     DrawGrid(1000, 1.0f);
 
     GroupEntity<CameraComponent>(
-        [this](auto entity, auto &comp, auto &transform, auto id) {          
+        [this](auto entity, auto &comp, auto &transform, auto id) {
           comp.Camera.position = transform.Translation;
 
           DrawCameraFrustum(comp.Camera);
@@ -342,5 +598,16 @@ void EditorScene::OnUpdate(float ts) {
   }
   EndMode3D();
 
+  SetMouseOffset(0, 0);
+  SetMouseScale(1.0f, 1.0f);
+
+  EndTextureMode();
+
   FlushEntityDestruction();
+
+  ImGui::Begin("Shadow Map");
+  {
+    ImGui::Image((ImTextureID)(uintptr_t)m_ShadowMap.RenderTexture.texture.id, ImVec2(256, 256), ImVec2(0, 1), ImVec2(1, 0));
+  }
+  ImGui::End();
 }
