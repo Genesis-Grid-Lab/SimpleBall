@@ -33,14 +33,18 @@ void Application::TestingGround() {
   auto& fTC = floor.GetComponent<TransformComponent>();
   floor.AddComponent<PlaneComponent>().Tint = PURPLE;
   fTC.Scale = {10, 0, 10};
+  floor.AddComponent<BoxColliderComponent>().Size = Vector3{1, 1, 1};
+  floor.AddComponent<RigidbodyComponent>().Type = BodyType::Static;
 
   auto cube = m_EditorScene->CreateEntity("Cube");
   auto &cubeTC = cube.GetComponent<TransformComponent>();
   auto &cubeComp = cube.AddComponent<CubeComponent>();
-  cubeTC.Scale = Vector3{10, 10, 10};
+  cubeTC.Scale = Vector3{2, 2, 2};
   cubeComp.Tint = GREEN;
 
-  cubeTC.Translation = Vector3{10, 0, 0};
+  cubeTC.Translation = Vector3{0, 5, 0};
+  cube.AddComponent<BoxColliderComponent>().Size = Vector3{1, 1, 1};
+  cube.AddComponent<RigidbodyComponent>().Type = BodyType::Dynamic;
 
   class cubeControl : public ScriptableEntity {
   public:
@@ -62,7 +66,8 @@ void Application::TestingGround() {
   camComp.Camera.up = {0, 1, 0};
   camComp.Camera.target = cubeTC.Translation;
 
-  camTc.Translation = {-8, 7, 22};
+  camTc.Translation = {-9.8f, 7.0f, 20.0f};
+  camTc.Rotation = {0, 2.6f, 0};
 
   auto light = m_EditorScene->CreateEntity("Light");
   auto& lTC = light.GetComponent<TransformComponent>();
@@ -73,7 +78,13 @@ void Application::TestingGround() {
 
 
   auto man = m_EditorScene->CreateEntity("Man");
-  man.AddComponent<ModelComponent>().ModelPath = "Resources/greenman.glb";
+  auto &manMC = man.AddComponent<ModelComponent>();
+  manMC.ModelPath = "Resources/greenman.glb";
+  manMC.model = ResourceManager::Load<Model>(manMC.ModelPath, manMC.ModelPath);
+  manMC.Loaded = true;
+  auto &manAnim = man.AddComponent<AnimationComponent>();
+  manAnim.AnimationPath = "Resources/greenman.glb";
+  manAnim.Play(2);
   man.AddComponent<LuaScriptComponent>().scriptPath = "Resources/Scripts/test.lua";  
 }
 

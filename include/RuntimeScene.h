@@ -22,7 +22,7 @@ private:
   Shader m_DefaultShader;
 
   LightShaderCahe m_LightShaderCache;
-  ShadowMap m_ShadowMap;
+  ShadowMap m_ShadowMap;  
 
   Model m_CubeModel;
   Model m_SphereModel;

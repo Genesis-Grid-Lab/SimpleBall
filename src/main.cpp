@@ -35,21 +35,42 @@ int main() {
 
       if (ImGui::BeginMainMenuBar()) {
 
-	if (ImGui::BeginMenu("File"))
-	  {
-	    if (ImGui::MenuItem("Quit"))
-	      run = false;
-	    
-	    ImGui::EndMenu();
-	  }
-	
-	if (ImGui::BeginMenu("Window"))
+        if (ImGui::BeginMenu("File"))
+          {
+            if (ImGui::MenuItem("Quit"))
+              run = false;
+            
+            ImGui::EndMenu();
+          }
+        
+        if (ImGui::BeginMenu("Window"))
 	  {
 	    if (ImGui::MenuItem("Demo Window", nullptr, showDemoWindow))
 	      showDemoWindow = !showDemoWindow;
-	    
+
+      if (ImGui::MenuItem("Fullscreen"))
+        ToggleBorderlessWindowed();   
+        
 	    ImGui::EndMenu();
-	  }
+        }
+
+        if (ImGui::BeginMenu("Debug")) {
+          if (ImGui::MenuItem("Show Physics Colliders"))
+              PhysicsEngine::ToggleDebugDraw();
+          ImGui::EndMenu();
+      }
+      
+    
+    
+  
+
+  if(ImGui::BeginMenu("Help"))
+    {
+      if (ImGui::MenuItem("Documentation"))
+        OpenURL("");
+
+      ImGui::EndMenu();
+    }
 	ImGui::EndMainMenuBar();
       }
 

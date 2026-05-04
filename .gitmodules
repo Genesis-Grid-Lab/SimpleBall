@@ -20,3 +20,6 @@
 [submodule "vendor/lua"]
 	path = vendor/lua
 	url = https://github.com/marovira/lua.git
+[submodule "vendor/jolt"]
+	path = vendor/jolt
+	url = https://github.com/jrouwe/JoltPhysics.git

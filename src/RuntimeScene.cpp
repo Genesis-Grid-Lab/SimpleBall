@@ -7,6 +7,7 @@
 #include "raymath.h"
 #include "rlgl.h"
 #include <sol/forward.hpp>
+#include "PhysicsEngine.h"
 
 RuntimeScene::RuntimeScene() {
   m_ViewTexture = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
@@ -130,13 +131,27 @@ void RuntimeScene::OnRuntimeStart() {
   GroupEntity<LuaScriptComponent>(
       [this](auto entity, auto &comp, auto &transform, auto id) {
 	LuaScriptEngine::LoadScript(Entity(entity, this), comp);
-  });
+      });
+
+  auto view =
+      GetRegistry()
+          .view<RigidbodyComponent, BoxColliderComponent, TransformComponent>();
+
+  for (auto entity : view) {
+    auto& rn = view.get<RigidbodyComponent>(entity);
+    auto& bc = view.get<BoxColliderComponent>(entity);
+    auto &tr = view.get<TransformComponent>(entity);
+
+    m_PhysicsEngine.CreateBody(entity, rn, tr, *this);
+  }
 }
 
 //--------------------------------------------------------------------
 // Scene::OnRuntimeStop
 //--------------------------------------------------------------------
-void RuntimeScene::OnRuntimeStop() {}
+void RuntimeScene::OnRuntimeStop() {
+  m_PhysicsEngine.Clear();
+}
 
 
 //--------------------------------------------------------------------
@@ -147,6 +162,8 @@ void RuntimeScene::OnUpdate(float ts) {
   BeginTextureMode(m_ViewTexture);
 
   ClearBackground(SKYBLUE);
+
+  m_PhysicsEngine.Update(ts, *this);
 
   GroupEntity<NativeScriptComponent>(
       [=](auto entity, auto &comp, auto &transform, auto id) {
@@ -231,9 +248,16 @@ void RuntimeScene::OnUpdate(float ts) {
 
 	  }else {
 	  m_CubeModel.materials[0].shader = m_DefaultShader;
-	}
+          }
 
-	DrawModelEx(m_CubeModel, transform.Translation, {0,1,0}, transform.Rotation.y * RAD2DEG, transform.Scale, comp.Tint);
+          Matrix matRotation = MatrixRotateXYZ(
+              {transform.Rotation.x * RAD2DEG, transform.Rotation.y * RAD2DEG,
+               transform.Rotation.z * RAD2DEG});
+
+          m_CubeModel.transform = MatrixMultiply(MatrixScale(transform.Scale.x, transform.Scale.y, transform.Scale.z),
+                                                   matRotation);
+
+	DrawModel(m_CubeModel, transform.Translation, 1.0f, comp.Tint);
       });
 
   GroupEntity<PlaneComponent>(
@@ -244,9 +268,14 @@ void RuntimeScene::OnUpdate(float ts) {
 	    m_PlaneModel.materials[0].shader = m_DefaultShader;
           }
 
-          DrawModelEx(m_PlaneModel, transform.Translation, {0, 1, 0},
-                      transform.Rotation.y * RAD2DEG, transform.Scale,
-                      comp.Tint);   
+          Matrix matRotation = MatrixRotateXYZ(
+              {transform.Rotation.x * RAD2DEG, transform.Rotation.y * RAD2DEG,
+               transform.Rotation.z * RAD2DEG});
+
+          m_PlaneModel.transform = MatrixMultiply(MatrixScale(transform.Scale.x, transform.Scale.y, transform.Scale.z),
+                                                   matRotation);
+
+          DrawModel(m_PlaneModel, transform.Translation, 1.0f, comp.Tint);   
 	});
 
   GroupEntity<SphereComponent>(
@@ -256,11 +285,16 @@ void RuntimeScene::OnUpdate(float ts) {
 	}
 	else {
 	  m_SphereModel.materials[0].shader = m_DefaultShader;
-	}
+        }
 
-	DrawModelEx(m_SphereModel, transform.Translation, {0, 1, 0},
-		    transform.Rotation.y * RAD2DEG, transform.Scale,
-		    comp.Tint); 
+          Matrix matRotation = MatrixRotateXYZ(
+              {transform.Rotation.x * RAD2DEG, transform.Rotation.y * RAD2DEG,
+               transform.Rotation.z * RAD2DEG});
+
+          m_SphereModel.transform = MatrixMultiply(MatrixScale(transform.Scale.x, transform.Scale.y, transform.Scale.z),
+                                                   matRotation);
+
+	        DrawModel(m_SphereModel, transform.Translation, 1.0f, comp.Tint);
       });
 
       GroupEntity<ModelComponent>(
@@ -276,12 +310,17 @@ void RuntimeScene::OnUpdate(float ts) {
           }
 	  else{
 	    for (int i = 0; i < model.materialCount; i++)
-              model.materials[i].shader = m_DefaultShader;            
-	  }
+              model.materials[i].shader = m_DefaultShader;
+          }
 
-          DrawModelEx(model, transform.Translation, {0, 1, 0},
-                      transform.Rotation.y * RAD2DEG, transform.Scale,
-                      comp.Tint);	  
+          Matrix matRotation = MatrixRotateXYZ(
+              {transform.Rotation.x * RAD2DEG, transform.Rotation.y * RAD2DEG,
+               transform.Rotation.z * RAD2DEG});
+
+          model.transform = MatrixMultiply(MatrixScale(transform.Scale.x, transform.Scale.y, transform.Scale.z),
+                                                   matRotation);
+
+          DrawModel(model, transform.Translation, 1.0f, comp.Tint); 
 	});
 
 

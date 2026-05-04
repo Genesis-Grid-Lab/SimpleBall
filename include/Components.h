@@ -1,5 +1,8 @@
 #pragma once
 
+#include "Jolt.h"
+#include "Physics/Body/BodyID.h"
+#include "Physics/Character/CharacterVirtual.h"
 #include "UUID.h"
 #include "raylib.h"
 #include "sol/sol.hpp"
@@ -64,6 +67,8 @@ struct SphereComponent : RenderComponent {
 
 struct ModelComponent : RenderComponent {
   std::string ModelPath = "";
+  Model model;
+  bool Loaded = false;
 
   ModelComponent() = default;
   ModelComponent(const ModelComponent &) = default;
@@ -84,8 +89,10 @@ struct SpriteComponent : RenderComponent {
 
 struct CameraComponent {
   Camera3D Camera = {0};
+  Vector3 Target = {0, 0, 0};
   bool Primary = false;
   bool FixedAspecRatio = false;
+  bool UseTargetMode = false;
 
   CameraComponent() = default;
   CameraComponent(const CameraComponent &) = default;
@@ -128,23 +135,54 @@ struct RigidbodyComponent {
   Vector3 AngularVelocity = {0, 0, 0};
 
   float Mass = 1.0f;
-  float Drag = 0.0f;
-  float AngularDrag = 0.05f;
+  float Restitution = 0.5f;
+  float Friction = 0.2f;
+  float LinearDamping = 0.5f;
+  float AngularDamping = 0.5f;
 
   bool useGravity = true;
+  bool Dirty = true;
+
+  JPH::BodyID RuntimeBodyID;
 
   RigidbodyComponent() = default;
   RigidbodyComponent(const RigidbodyComponent &) = default;
 };
 
-struct BoxColliderComponent {
-  Vector3 Offset = {0, 0, 0};
-  Vector3 Size = {1, 1, 1};
+struct CharacterComponent {
+  float MaxSlopeAngle = 45.0f;
+  float MaxStepHeight = 0.3f;
+  JPH::CharacterVirtual *RuntimeCharacter = nullptr;
 
+  CharacterComponent() = default;
+  CharacterComponent(const CharacterComponent &) = default;
+};
+
+struct ColliderComponent {
+  Vector3 Offset = {0, 0, 0};
   bool IsTrigger = false;
+};
+
+struct BoxColliderComponent : ColliderComponent {  
+  Vector3 Size = {1, 1, 1};
 
   BoxColliderComponent() = default;
   BoxColliderComponent(const BoxColliderComponent &) = default;
+};
+
+struct SphereColliderComponent : ColliderComponent {
+  float Radius = 0.5f;
+
+  SphereColliderComponent() = default;
+  SphereColliderComponent(const SphereColliderComponent &) = default;
+};
+
+struct CapsuleColliderComponent : ColliderComponent {
+  float Radius = 0.5f;
+  float HalfHeight = 0.5f;
+
+  CapsuleColliderComponent() = default;
+  CapsuleColliderComponent(const CapsuleColliderComponent &) = default;
 };
 
 //---------------------------------------
@@ -169,6 +207,34 @@ struct AudioListenerComponent {
 
   AudioListenerComponent() = default;
   AudioListenerComponent(const AudioListenerComponent &) = default;
+};
+
+//---------------------------------------
+// Animation
+//---------------------------------------
+
+struct AnimationComponent {
+  std::string AnimationPath;
+  ModelAnimation *AnimsPtr = nullptr;
+  unsigned int AnimationsCount = 0;
+  int CurrentAnimationIndex = 0;
+  int CurrentFrame = 0;
+  bool IsPlaying = true;
+  float FrameTime = 0.0f;
+  float Speed = 1.0f;
+  bool Loaded = false;
+
+  void Play(int index) {
+    if(index >= 0 && index < (int)AnimationsCount){
+      CurrentAnimationIndex = index;
+      CurrentFrame = 0;
+      FrameTime = 0.0f;
+    }
+  }
+
+  AnimationComponent() = default;
+  AnimationComponent(const AnimationComponent &) = default;
+  AnimationComponent(const std::string &path) : AnimationPath(path) {}
 };
 
 //---------------------------------------

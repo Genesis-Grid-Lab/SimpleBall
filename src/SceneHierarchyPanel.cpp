@@ -67,7 +67,7 @@ static bool DrawVec3Control(const char *label, Vector3 &values,
     ImGui::PopStyleColor(3);
 
     ImGui::SameLine();
-    changed |= ImGui::DragFloat(dragID, &v, 0.1f); // <- unique per axis
+    changed |= ImGui::DragFloat(dragID, &v, 0.1f); // <- unique per axis    
     ImGui::PopItemWidth();
     ImGui::SameLine();
   };
@@ -254,7 +254,7 @@ static void DrawAddComponentPopup(Entity entity) {
     if (!entity.HasComponent<CameraComponent>()) {
       if (ImGui::MenuItem("Camera")) {
         entity.AddComponent<CameraComponent>();
-	ImGui::CloseCurrentPopup();
+        ImGui::CloseCurrentPopup();        
       }
     }
 
@@ -307,10 +307,31 @@ static void DrawAddComponentPopup(Entity entity) {
       }
     }
 
+    if(!entity.HasComponent<CharacterComponent>()){
+      if(ImGui::MenuItem("Character")){
+        entity.AddComponent<CharacterComponent>();
+        ImGui::CloseCurrentPopup();          
+      }
+    }
+
     if (!entity.HasComponent<BoxColliderComponent>()) {
       if (ImGui::MenuItem("BoxCollider")) {
         entity.AddComponent<BoxColliderComponent>();
-	ImGui::CloseCurrentPopup();
+        ImGui::CloseCurrentPopup();        
+      }
+    }
+
+    if(!entity.HasComponent<SphereColliderComponent>()){
+      if(ImGui::MenuItem("SphereCollider")){
+        entity.AddComponent<SphereColliderComponent>();
+  ImGui::CloseCurrentPopup();
+      }
+    }
+
+    if(!entity.HasComponent<CapsuleColliderComponent>()){
+      if(ImGui::MenuItem("CapsuleCollider")){
+        entity.AddComponent<CapsuleColliderComponent>();
+  ImGui::CloseCurrentPopup();
       }
     }
 
@@ -375,9 +396,13 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
 
   // Transform
   DrawComponent<TransformComponent>(
-      "TransformComponent", entity,
-      [](Entity, TransformComponent &tc) {
-        DrawVec3Control("Translation", tc.Translation);
+      "TransformComponent", entity, [](Entity entt, TransformComponent &tc) {
+        if(DrawVec3Control("Translation", tc.Translation)) {
+            if(entt.HasComponent<RigidbodyComponent>()) {
+                auto& rb = entt.GetComponent<RigidbodyComponent>();
+                rb.Dirty = true;
+            }
+        }
         DrawVec3Control("Rotation", tc.Rotation);
 	DrawVec3Control("Scale", tc.Scale, 1.0f);
       },
@@ -386,6 +411,7 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
   DrawComponent<CameraComponent>("Camera", entity,
                                  [](Entity, CameraComponent &cc) {
                                    DrawCameraControl(cc.Camera);
+                                   ImGui::Checkbox("Use Target Mode", &cc.UseTargetMode);
                                    ImGui::Checkbox("Primary", &cc.Primary);
 				   ImGui::Checkbox("FixedAspectRatio", &cc.FixedAspecRatio);
                                    });
@@ -453,9 +479,12 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
   DrawComponent<RigidbodyComponent>("RigidbodyComponent", entity,
                                     [](Entity, RigidbodyComponent &rc) {
 				      const char *items[] = {"Static", "Dynamic", "Kinematic"};
-				      int selected = 0;
-				      
-				      ImGui::ListBox("Type", &selected, items, IM_ARRAYSIZE(items));
+				      int selected = (int)rc.Type;
+
+                                      if (ImGui::Combo("Type", &selected, items,
+                                                       IM_ARRAYSIZE(items))) {
+                                        rc.Type = (BodyType)selected;
+                                      }
 
 				      switch (selected) {
 				      case 0:
@@ -474,12 +503,26 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
                                                       rc.AngularVelocity);
 
                                       ImGui::DragFloat("Mass", &rc.Mass);
-                                      ImGui::DragFloat("Drag", &rc.Drag);
-                                      ImGui::DragFloat("AngularDrag",
-                                                       &rc.AngularDrag);
+                                      ImGui::DragFloat("Restitution",
+                                                       &rc.Restitution);
+                                      ImGui::DragFloat("Friction", &rc.Friction);
+                                      ImGui::DragFloat("LinearDamping",
+                                                       &rc.LinearDamping);
+                                      ImGui::DragFloat("AngularDamping",
+                                                       &rc.AngularDamping);
 
-				      ImGui::Checkbox("Gravity", &rc.useGravity);
-  });
+                                      ImGui::Checkbox("Gravity",
+                                                      &rc.useGravity);
+                                    });
+
+  DrawComponent<CharacterComponent>("CharacterComponent", entity,
+                                    [](Entity, CharacterComponent &cc) {
+                                      // DrawVec3Control("Velocity", cc.Velocity);
+                                      // ImGui::DragFloat("Speed", &cc.Speed);
+                                      // ImGui::DragFloat("Jump Strength",
+                                      //                  &cc.JumpStrength);
+                                      // ImGui::Checkbox("Grounded", &cc.Grounded);
+                                    });
 
   DrawComponent<BoxColliderComponent>("BoxColliderComponent", entity,
                                       [](Entity, BoxColliderComponent &bc) {
@@ -488,6 +531,25 @@ void SceneHierarchyPanel::DrawComponents(Entity entity) {
 
 					ImGui::Checkbox("IsTrigger", &bc.IsTrigger);
                                       });
+
+  DrawComponent<SphereColliderComponent>(
+      "SphereColliderComponent", entity,
+      [](Entity, SphereColliderComponent &sc) {
+        DrawVec3Control("Offset", sc.Offset);
+        ImGui::DragFloat("Radius", &sc.Radius);
+
+        ImGui::Checkbox("IsTrigger", &sc.IsTrigger);
+      });
+
+  DrawComponent<CapsuleColliderComponent>(
+      "CapsuleColliderComponent", entity,
+      [](Entity, CapsuleColliderComponent &cc) {
+        DrawVec3Control("Offset", cc.Offset);
+        ImGui::DragFloat("Radius", &cc.Radius);
+        ImGui::DragFloat("HalfHeight", &cc.HalfHeight);
+
+        ImGui::Checkbox("IsTrigger", &cc.IsTrigger);
+      });  
 
   DrawComponent<AudioSourceComponent>("AudioSourceComponent", entity,
                                       [](Entity, AudioSourceComponent &asc) {

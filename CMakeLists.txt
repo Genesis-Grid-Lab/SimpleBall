@@ -22,6 +22,7 @@ add_subdirectory(vendor/raylib)
 add_subdirectory(vendor/entt)
 add_subdirectory(vendor/lua)
 add_subdirectory(vendor/sol2)
+add_subdirectory(vendor/jolt/Build)
 
 project(SimpleBall C CXX)
 
@@ -54,6 +55,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_SOURCE_DIR}/vendor/raylib-gizmo/src
   ${CMAKE_SOURCE_DIR}/vendor/sol2/include
   ${CMAKE_SOURCE_DIR}/vendor/lua/src
+  ${CMAKE_SOURCE_DIR}/vendor/jolt/Jolt
+  ${CMAKE_SOURCE_DIR}/vendor/jolt
 )
 
 # link libraries
@@ -62,6 +65,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   EnTT
   sol2
   liblua
+  Jolt
 )
 
 # copy resources

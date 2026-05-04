@@ -2,6 +2,7 @@
 #include "Components.h"
 #include "Entity.h"
 #include "RuntimeScene.h"
+#include "ResourceManager.h"
 
 template <typename Comp>
 static void CopyComponent(entt::registry &dst, entt::registry &src, const std::unordered_map<UUID, entt::entity> &enttMap){
@@ -38,7 +39,10 @@ Entity Scene::CreateEntityWithUUID(UUID uuid, const std::string &name) {
 void Scene::DestroyEntityNow(Entity entity) { m_Registry.destroy(entity); }
 
 void Scene::DestroyEntity(Entity entity) {
-  m_DestroyQueue.push_back((entt::entity)entity);  
+  m_DestroyQueue.push_back((entt::entity)entity);
+  if(entity.HasComponent<RigidbodyComponent>() && entity.HasComponent<BoxColliderComponent>()) {
+    m_PhysicsEngine.DestroyBody((entt::entity)entity);
+  }
 }
 
 void Scene::FlushEntityDestruction(){
@@ -73,11 +77,17 @@ void Scene::DuplicateEntity(Entity entity) {
   
   // Physics
   CopyComponentIfExists<RigidbodyComponent>(newEntity, entity);
+  CopyComponentIfExists<CharacterComponent>(newEntity, entity);
   CopyComponentIfExists<BoxColliderComponent>(newEntity, entity);
+  CopyComponentIfExists<SphereColliderComponent>(newEntity, entity);
+  CopyComponentIfExists<CapsuleColliderComponent>(newEntity, entity);
   
   // Audio
   CopyComponentIfExists<AudioListenerComponent>(newEntity, entity);
   CopyComponentIfExists<AudioSourceComponent>(newEntity, entity);
+
+  // Animation
+  CopyComponentIfExists<AnimationComponent>(newEntity, entity);
   
   // Scripting
   CopyComponentIfExists<NativeScriptComponent>(newEntity, entity);
@@ -125,14 +135,23 @@ Ref<T> Scene::Copy(const Ref<Scene> &other) {
   // Physics
   CopyComponent<RigidbodyComponent>(dstSceneRegistry, srcSceneRegistry,
                                     enttMap);
+  CopyComponent<CharacterComponent>(dstSceneRegistry, srcSceneRegistry,
+                                    enttMap);
   CopyComponent<BoxColliderComponent>(dstSceneRegistry, srcSceneRegistry,
                                       enttMap);
-
+  CopyComponent<SphereColliderComponent>(dstSceneRegistry, srcSceneRegistry,
+                                         enttMap);
+  CopyComponent<CapsuleColliderComponent>(dstSceneRegistry, srcSceneRegistry,
+                                         enttMap);
   // Audio
   CopyComponent<AudioListenerComponent>(dstSceneRegistry, srcSceneRegistry,
                                         enttMap);
   CopyComponent<AudioSourceComponent>(dstSceneRegistry, srcSceneRegistry,
                                       enttMap);
+
+  // Animation
+  CopyComponent<AnimationComponent>(dstSceneRegistry, srcSceneRegistry,
+                                  enttMap);
 
   // Scripting
   CopyComponent<NativeScriptComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
@@ -143,6 +162,67 @@ Ref<T> Scene::Copy(const Ref<Scene> &other) {
   CopyComponent<EditorOnlyComponent>(dstSceneRegistry, srcSceneRegistry, enttMap);
   return newScene;
 }
+
+void Scene::UpdateAnimationSystem(float ts) {
+  auto view = m_Registry.view<AnimationComponent, ModelComponent>();
+
+  for(auto entity : view) {
+    auto &animation = view.get<AnimationComponent>(entity);
+    auto &modelComp = view.get<ModelComponent>(entity); // Le composant de l'entité
+
+    if(!animation.IsPlaying || animation.AnimationPath.empty())
+      continue;
+
+    // 1. Récupération sécurisée des animations    
+    if (!modelComp.Loaded) {
+      if(!ResourceManager::Has<Model>(modelComp.ModelPath)) {
+        // ASSERT(false, "Model not found for animation");
+        modelComp.model = ResourceManager::Load<Model>(modelComp.ModelPath, modelComp.ModelPath);
+      }else {
+        modelComp.model = ResourceManager::Get<Model>(modelComp.ModelPath);
+      }      
+      modelComp.Loaded = true;
+    }
+
+    if (!animation.Loaded) {
+      if (!ResourceManager::Has<ModelAnimation *>(animation.AnimationPath)) {
+          animation.AnimsPtr = ResourceManager::Load<ModelAnimation *>(animation.AnimationPath, animation.AnimationPath);
+          // Tu devrais aussi stocker le count quelque part lors du Load
+      } else {
+        
+        animation.AnimsPtr = ResourceManager::Get<ModelAnimation *>(animation.AnimationPath);
+      }
+      animation.AnimationsCount = 4; // A adapter selon comment tu stockes ça    
+      animation.Loaded = true;
+    }
+
+
+
+    if (!animation.AnimsPtr) continue;
+
+    ModelAnimation &currentAnim = animation.AnimsPtr[animation.CurrentAnimationIndex];
+
+    // 2. Gestion du timing
+    animation.FrameTime += ts * animation.Speed;
+    float frameDuration = 1.0f / 24.0f; // Ajuste selon ton export (souvent 30.0f)
+
+    if(animation.FrameTime >= frameDuration) {
+        animation.FrameTime = 0.0f;
+        animation.CurrentFrame = (animation.CurrentFrame + 1) % currentAnim.keyframeCount;
+
+        // 3. Mise à jour : Utilise le modèle SPECIFIQUE à cette entité
+        // Si modelComp.Model est une copie unique, ça marchera.
+        // Si c'est une référence au manager, ils bougeront tous pareil.
+        UpdateModelAnimation(modelComp.model, currentAnim,
+                             animation.CurrentFrame);
+
+        // UpdateModelAnimation(modelComp.model, currentAnim, 10);        
+
+      }      
+  }
+
+}
+
 
 template Ref<RuntimeScene> Scene::Copy<RuntimeScene>(const Ref<Scene>&);
 // template Ref<EditorScene> Scene::Copy<EditorScene>(const Ref<Scene>&);
@@ -189,7 +269,18 @@ template <>
 void Scene::OnComponentAdded(Entity entity, RigidbodyComponent &component) {}
 
 template <>
+void Scene::OnComponentAdded(Entity entity, CharacterComponent &component) {}
+
+template <>
 void Scene::OnComponentAdded(Entity entity, BoxColliderComponent &component) {}
+
+template <>
+void Scene::OnComponentAdded(Entity entity,
+                             SphereColliderComponent &component) {}
+
+template <>
+void Scene::OnComponentAdded(Entity entity,
+                             CapsuleColliderComponent &component) {}
 
 // Audio
 template <>
@@ -197,11 +288,17 @@ void Scene::OnComponentAdded(Entity entity, AudioListenerComponent &component) {
 }
 
 template <>
-void Scene::OnComponentAdded(Entity entity, AudioSourceComponent &component){}
+void Scene::OnComponentAdded(Entity entity, AudioSourceComponent &component) {}
+
+template <>
+void Scene::OnComponentAdded(Entity entity, AnimationComponent &component) {}
 
 // Scripting
 template <>
 void Scene::OnComponentAdded(Entity entity, NativeScriptComponent &componet) {}
 
 template <>
-void Scene::OnComponentAdded(Entity entity, LuaScriptComponent& component){}
+void Scene::OnComponentAdded(Entity entity, LuaScriptComponent &component) {}
+
+template <>
+void Scene::OnComponentAdded(Entity entity, EditorOnlyComponent &component) {}

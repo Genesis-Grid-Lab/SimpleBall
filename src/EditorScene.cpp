@@ -356,6 +356,8 @@ void EditorScene::ShadowPass() {
 
 void EditorScene::OnUpdate(float ts) {
 
+  UpdateAnimationSystem(ts);
+
   ShadowPass();
 
   BeginTextureMode(m_ViewTexture);
@@ -478,7 +480,16 @@ void EditorScene::OnUpdate(float ts) {
 	    m_CubeModel.materials[0].shader = m_DefaultShader;
             }
 
-	  DrawModelEx(m_CubeModel, transform.Translation, {0,1,0}, transform.Rotation.y * RAD2DEG, transform.Scale, comp.Tint);
+            Matrix matRotation = MatrixRotateXYZ(
+                {transform.Rotation.x * RAD2DEG, transform.Rotation.y * RAD2DEG,
+                 transform.Rotation.z * RAD2DEG});
+
+            m_CubeModel.transform = MatrixMultiply(MatrixScale(transform.Scale.x, transform.Scale.y, transform.Scale.z),
+                                                   matRotation);
+
+            DrawModel(m_CubeModel, transform.Translation, 1.0f, comp.Tint);
+            
+              
           BoundingBox box = {
             .min = Vector3{transform.Translation.x - transform.Scale.x / 2,
                            transform.Translation.y - transform.Scale.y / 2,
@@ -519,9 +530,14 @@ void EditorScene::OnUpdate(float ts) {
 	    m_PlaneModel.materials[0].shader = m_DefaultShader;
           }
 
-          DrawModelEx(m_PlaneModel, transform.Translation, {0, 1, 0},
-                      transform.Rotation.y * RAD2DEG, transform.Scale,
-                      comp.Tint);          
+          Matrix matRotation = MatrixRotateXYZ(
+              {transform.Rotation.x * RAD2DEG, transform.Rotation.y * RAD2DEG,
+               transform.Rotation.z * RAD2DEG});
+
+          m_PlaneModel.transform = MatrixMultiply(MatrixScale(transform.Scale.x, transform.Scale.y, transform.Scale.z),
+                                                   matRotation);          
+
+          DrawModel(m_PlaneModel, transform.Translation, 1.0f, comp.Tint);
     });
 
     GroupEntity<SphereComponent>(
@@ -533,17 +549,27 @@ void EditorScene::OnUpdate(float ts) {
 	    m_SphereModel.materials[0].shader = m_DefaultShader;
           }
 
-          DrawModelEx(m_SphereModel, transform.Translation, {0, 1, 0},
-                      transform.Rotation.y * RAD2DEG, transform.Scale,
-                      comp.Tint);          
+          Matrix matRotation = MatrixRotateXYZ(
+              {transform.Rotation.x * RAD2DEG, transform.Rotation.y * RAD2DEG,
+               transform.Rotation.z * RAD2DEG});
+
+          m_SphereModel.transform = MatrixMultiply(MatrixScale(transform.Scale.x, transform.Scale.y, transform.Scale.z),
+                                                   matRotation);
+
+          DrawModel(m_SphereModel, transform.Translation, 1.0f, comp.Tint);    
         });
 
     GroupEntity<ModelComponent>(
         [&](auto entity, auto &comp, auto &transform, auto id) {
-          if (!ResourceManager::Has<Model>(comp.ModelPath))
-            ResourceManager::Load<Model>(comp.ModelPath, comp.ModelPath);
+          if (!comp.Loaded) {
+            if (!ResourceManager::Has<Model>(comp.ModelPath))
+              ResourceManager::Load<Model>(comp.ModelPath, comp.ModelPath);
+
+            comp.model = ResourceManager::Get<Model>(comp.ModelPath);
+            comp.Loaded = true;            
+          }
           // todo: trim comp.ModelPath
-          Model &model = ResourceManager::Get<Model>(comp.ModelPath);
+          Model &model = comp.model;
 
 	  if(comp.useSceneLighting){
             for (int i = 0; i < model.materialCount; i++)
@@ -554,10 +580,83 @@ void EditorScene::OnUpdate(float ts) {
 	      model.materials[i].shader = m_DefaultShader;
           }
 
-          DrawModelEx(model, transform.Translation, {0, 1, 0},
-                      transform.Rotation.y * RAD2DEG, transform.Scale,
-                      comp.Tint);	  
-	});
+          // Matrix matRotation = MatrixRotateXYZ(
+          //     {transform.Rotation.x * RAD2DEG, transform.Rotation.y * RAD2DEG,
+          //      transform.Rotation.z * RAD2DEG});
+
+          // model.transform = MatrixMultiply(MatrixScale(transform.Scale.x,
+          // transform.Scale.y, transform.Scale.z),
+          //  matRotation);
+
+          Matrix matRotation = MatrixRotateXYZ(transform.Rotation); // Utilise les radians directs
+Matrix matScale = MatrixScale(transform.Scale.x, transform.Scale.y, transform.Scale.z);
+
+// model.transform = MatrixMultiply(matScale, matRotation);
+
+          DrawModel(model, transform.Translation, 1.0f, comp.Tint);
+        });
+
+    GroupEntity<BoxColliderComponent>([&](auto entity, auto &box,
+                                          auto &transform, auto id) {
+      Vector3 center = Vector3Add(transform.Translation, box.Offset);
+
+      Vector3 size = {box.Size.x * transform.Scale.x,
+                      box.Size.y * transform.Scale.y,
+                      box.Size.z * transform.Scale.z};
+
+      BoundingBox bounds = {{center.x - size.x * 0.5f, center.y - size.y * 0.5f,
+                             center.z - size.z * 0.5f},
+                            {center.x + size.x * 0.5f, center.y + size.y * 0.5f,
+                             center.z + size.z * 0.5f}};
+
+      if(PhysicsEngine::IsDebugDrawEnabled()){
+        DrawBoundingBox(bounds, YELLOW);
+      }
+    });
+
+    GroupEntity<SphereColliderComponent>([&](auto entity, auto &sphere,
+                                             auto &transform, auto id) {
+      Vector3 center = Vector3Add(transform.Translation, sphere.Offset);
+
+      float radius = sphere.Radius * (transform.Scale.x + transform.Scale.y + transform.Scale.z);
+
+      if(PhysicsEngine::IsDebugDrawEnabled()){
+        DrawSphereWires(center, radius, 16, 16, ORANGE);
+      }
+    });
+
+    GroupEntity<CapsuleColliderComponent>([&](auto entity, auto &capsule,
+                                             auto &transform, auto id) {
+       Vector3 center = Vector3Add(transform.Translation, capsule.Offset);
+    
+    // Calcul de la rotation pour l'affichage
+    // Note: Raylib dessine les capsules verticalement (axe Y)
+    Quaternion q = QuaternionFromEuler(transform.Rotation.x, transform.Rotation.y, transform.Rotation.z);
+    
+    // Raylib n'a pas de "DrawCapsuleWires", on simule avec un cylindre et deux sphères
+    // ou on utilise DrawCapsule si vous voulez un rendu plein
+    float totalHeight = (capsule.HalfHeight * 2.0f);
+    
+    // On dessine l'axe central pour le debug rapide
+    Vector3 top = Vector3RotateByQuaternion({0, capsule.HalfHeight, 0}, q);
+    Vector3 bottom = Vector3RotateByQuaternion({0, -capsule.HalfHeight, 0}, q);
+    
+    if(PhysicsEngine::IsDebugDrawEnabled()){
+      DrawLine3D(Vector3Add(center, top), Vector3Add(center, bottom), PURPLE);
+      DrawSphereWires(Vector3Add(center, top), capsule.Radius, 8, 8, PURPLE);
+      DrawSphereWires(Vector3Add(center, bottom), capsule.Radius, 8, 8, PURPLE);
+    }
+    });
+
+    GroupEntity<RigidbodyComponent>(
+    [&](auto entity, auto& rb, auto& transform, auto id)
+    {
+        Color color = rb.Type == BodyType::Static ? BLUE : GREEN;
+
+        if(PhysicsEngine::IsDebugDrawEnabled()){
+          DrawSphereWires(transform.Translation, 0.25f, 8, 8, color);
+        }        
+    });
 
     GroupEntity<IDComponent>(
         [&](auto entity, auto &comp, auto &transform, auto id) {
@@ -583,6 +682,29 @@ void EditorScene::OnUpdate(float ts) {
     GroupEntity<CameraComponent>(
         [this](auto entity, auto &comp, auto &transform, auto id) {
           comp.Camera.position = transform.Translation;
+
+         // 1. Si on a une cible spécifique, on recalcule la rotation pour "regarder" vers elle
+        if (comp.UseTargetMode) {
+            // Calcule une matrice qui pointe de la position vers la cible
+            // Matrix lookAt = MatrixLookAt(transform.Translation, comp.Target, {0, 1, 0});
+            Matrix lookAt = MatrixLookAt(transform.Translation, comp.Camera.target, {0, 1, 0});
+            
+            // On extrait les angles d'Euler de cette matrice pour mettre à jour transform.Rotation
+            // Note: Raylib n'a pas de MatrixToEuler direct, on utilise souvent QuaternionToEuler
+            Quaternion q = QuaternionFromMatrix(lookAt);
+            Vector3 euler = QuaternionToEuler(q);
+            
+            transform.Rotation = euler; 
+        }
+
+        // 2. Maintenant, on applique la rotation (qu'elle vienne du lookAt ou du contrôle manuel)
+        comp.Camera.position = transform.Translation;
+        
+        Matrix matRotation = MatrixRotateXYZ(transform.Rotation);
+        Vector3 forward = Vector3Transform({ 0, 0, 1 }, matRotation);
+        
+        comp.Camera.target = Vector3Add(comp.Camera.position, forward);
+        comp.Camera.up = Vector3Transform({ 0, 1, 0 }, matRotation);
 
           DrawCameraFrustum(comp.Camera);
 	  DrawSphere(comp.Camera.position, 0.25f, RED);

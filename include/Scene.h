@@ -1,6 +1,7 @@
 #pragma once
 #include "Components.h"
 #include <entt.hpp>
+#include "PhysicsEngine.h"
 
 class Entity;
 
@@ -42,13 +43,16 @@ public:
 
   virtual void OnUpdate(float ts) = 0;
 
-  entt::registry &GetRegistry() { return m_Registry; }  
+  entt::registry &GetRegistry() { return m_Registry; }
+
+  void UpdateAnimationSystem(float ts);
 private:
   template <typename T> void OnComponentAdded(Entity entity, T &component);
 protected:
   friend class Entity;
 
   RenderTexture m_ViewTexture;
+  PhysicsEngine m_PhysicsEngine;
 
   entt::registry m_Registry;
   std::vector<entt::entity>

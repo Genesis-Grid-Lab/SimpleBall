@@ -60,12 +60,16 @@ public:
     for (auto &[name, model] : s_Models)
       UnloadModel(model);
 
+    for (auto &[name, animation] : s_ModelAnimations)
+      UnloadModelAnimations(animation, animation->keyframeCount);
+
     s_Textures.clear();
     s_Sounds.clear();
     s_Music.clear();
     s_Fonts.clear();
     s_Shaders.clear();
     s_Models.clear();
+    s_ModelAnimations.clear();
   }
 
 public:
@@ -103,9 +107,13 @@ private:
     else if constexpr (std::is_same_v<Asset, Shader>)
       return s_Shaders;
     else if constexpr (std::is_same_v<Asset, Model>)
-      return s_Models;    
-    else
-      static_assert(sizeof(Asset) == 0, "Unsupported resource type");
+      return s_Models;
+    else if constexpr (std::is_same_v<Asset, ModelAnimation*>)
+      return s_ModelAnimations;
+    else {
+      
+      // static_assert(sizeof(Asset) == 0, "Unsupported resource type");
+    }
   }
 
   template <typename Asset> static Asset LoadFromFile(const std::string &path) {
@@ -139,7 +147,16 @@ private:
       if (model.meshCount == 0)        
 	throw std::runtime_error("Failed to load model: " + path);
 
-      return model;      
+      return model;
+    }
+    else if constexpr (std::is_same_v<Asset, ModelAnimation*>){
+      int count = 0;
+    ModelAnimation* anims = LoadModelAnimations(path.c_str(), &count);
+
+    if (anims == nullptr || count == 0)
+        throw std::runtime_error("Failed to load model animations: " + path);
+
+      return anims;
     }    
     else
       static_assert(sizeof(Asset) == 0, "Unsupported resource type");
@@ -157,7 +174,9 @@ private:
     else if constexpr (std::is_same_v<Asset, Shader>)
       UnloadShader(resource);
     else if constexpr (std::is_same_v<Asset, Model>)
-      UnloadModel(resource);    
+      UnloadModel(resource);
+    else if constexpr (std::is_same_v<Asset, ModelAnimation*>)
+      UnloadModelAnimations(resource, resource->keyframeCount);   
     else
       static_assert(sizeof(Asset) == 0, "Unsupported resource type");
   }
@@ -168,4 +187,5 @@ private:
   inline static std::unordered_map<std::string, Font> s_Fonts;
   inline static std::unordered_map<std::string, Shader> s_Shaders;
   inline static std::unordered_map<std::string, Model> s_Models;
+  inline static std::unordered_map<std::string, ModelAnimation*> s_ModelAnimations;
 };
